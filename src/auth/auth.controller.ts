@@ -22,8 +22,8 @@ export class AuthController {
 
     // Temporary endpoint to create initial users
     @Post('register')
-    @ApiBody({ schema: { type: 'object', properties: { username: { type: 'string' }, password: { type: 'string' }, role: { type: 'string', enum: ['admin', 'digitador'] } } } })
+    @ApiBody({ schema: { type: 'object', properties: { username: { type: 'string' }, password: { type: 'string' }, fullName: { type: 'string' } } } })
     async register(@Body() body) {
-        return this.usersService.create(body.username, body.password, body.role);
+        return this.usersService.create(body.username, body.password, body.fullName);
     }
 }

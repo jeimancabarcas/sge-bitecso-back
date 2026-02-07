@@ -1,5 +1,5 @@
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateLeaderDto } from './dto/create-leader.dto';
@@ -13,9 +13,16 @@ export class LeadersService {
         private readonly leaderRepository: Repository<Leader>,
     ) { }
 
-    create(createLeaderDto: CreateLeaderDto) {
-        const leader = this.leaderRepository.create(createLeaderDto);
-        return this.leaderRepository.save(leader);
+    async create(createLeaderDto: CreateLeaderDto) {
+        try {
+            const leader = this.leaderRepository.create(createLeaderDto);
+            return await this.leaderRepository.save(leader);
+        } catch (error) {
+            if (error.code === '23505') {
+                throw new ConflictException(`Leader with cedula ${createLeaderDto.cedula} already exists`);
+            }
+            throw new InternalServerErrorException('Failed to create leader');
+        }
     }
 
     findAll() {

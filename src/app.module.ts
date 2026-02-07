@@ -8,8 +8,11 @@ import { LeadersModule } from './leaders/leaders.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 
+import { ScheduleModule } from '@nestjs/schedule';
+
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: 'postgres://avnadmin:AVNS_2ka5WyZnY42PnThUJm2@tranquility-db-tranquility.h.aivencloud.com:10093/defaultdb',

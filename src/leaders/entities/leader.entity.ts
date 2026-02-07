@@ -10,8 +10,14 @@ export class Leader {
     @Column()
     nombre: string;
 
+    @Column({ unique: true })
+    cedula: string;
+
     @Column({ nullable: true })
     telefono: string;
+
+    @Column({ nullable: true })
+    jefe: string;
 
     @OneToMany(() => Voter, (voter) => voter.leader)
     voters: Voter[];

@@ -12,10 +12,32 @@ import { UsersService } from '../users/users.service';
 import { LeadersService } from '../leaders/leaders.service';
 import * as ExcelJS from 'exceljs';
 import type { Response } from 'express';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class VotersService {
     private readonly logger = new Logger(VotersService.name);
+
+    @Cron('0 * * * * *')
+    async handleCron() {
+        this.logger.debug('Running Cron: Checking for pending voters to verify...');
+
+        const voter = await this.voterRepository.findOne({
+            where: { verification_status: 'PENDING' },
+            order: { created_at: 'ASC' },
+        });
+
+        if (voter) {
+            this.logger.log(`Cron: Found pending voter ${voter.cedula}. Starting verification.`);
+            try {
+                await this.verifyVoter(voter.id);
+            } catch (error) {
+                this.logger.error(`Cron: Verification failed for ${voter.cedula}`, error.stack);
+            }
+        } else {
+            this.logger.debug('Cron: No pending voters found.');
+        }
+    }
 
     constructor(
         @InjectRepository(Voter)
@@ -115,6 +137,7 @@ export class VotersService {
     async findAll(page: number = 1, limit: number = 10) {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
+            .leftJoinAndSelect('voter.detail', 'detail')
             .leftJoin('voter.created_by', 'created_by')
             .addSelect(['created_by.id', 'created_by.username', 'created_by.role'])
             .orderBy('voter.created_at', 'DESC')
@@ -138,7 +161,7 @@ export class VotersService {
             order: { created_at: 'DESC' },
             take: limit,
             skip: (page - 1) * limit,
-            relations: ['leader']
+            relations: ['leader', 'detail']
         });
 
         return {
@@ -153,7 +176,7 @@ export class VotersService {
     findOne(id: string) {
         return this.voterRepository.findOne({
             where: { id },
-            relations: ['verification_logs']
+            relations: ['verification_logs', 'detail', 'leader']
         });
     }
 
