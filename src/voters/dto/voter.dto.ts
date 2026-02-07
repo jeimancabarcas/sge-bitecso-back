@@ -28,6 +28,11 @@ export class VoterDto {
     @IsString()
     table?: string;
 
+    @ApiProperty({ description: 'Address of the polling station', required: false, example: 'Calle 123' })
+    @IsOptional()
+    @IsString()
+    address?: string;
+
     @ApiProperty({ description: 'ID of the leader registering the voter', example: 'leader-123' })
     @IsString()
     @IsNotEmpty()
