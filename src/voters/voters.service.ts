@@ -46,12 +46,27 @@ export class VotersService {
 
         this.logger.log(`Verifying voter ${voter.cedula}...`);
 
+        let result;
         try {
-            const data = await this.scraperService.extractVoterData(voter.cedula);
+            result = await this.scraperService.extractVoterData(voter.cedula);
+        } catch (error) {
+            // ERROR: Technical failure (Captcha, Connection, Timeout)
+            voter.verification_status = 'ERROR';
+            await this.voterRepository.save(voter);
 
-            // Success
+            await this.logRepository.save({
+                voter,
+                status: 'ERROR',
+                message: error.message || 'Technical error during verification',
+            });
+            this.logger.error(`Verification ERROR for ${voter.cedula}: ${error.message}`);
+            throw error;
+        }
+
+        if (result.success) {
+            // SUCCESS: Voter found and data extracted
             voter.verification_status = 'SUCCESS';
-            voter.registraduria_data = data;
+            voter.registraduria_data = result.data;
             await this.voterRepository.save(voter);
 
             await this.logRepository.save({
@@ -61,24 +76,43 @@ export class VotersService {
             });
 
             this.logger.log(`Voter ${voter.cedula} verified successfully.`);
-            return data;
-        } catch (error) {
-            // Failed
+            return result.data;
+        } else {
+            // FAILED: Voter not found or other business logic rejection (e.g. not in census)
             voter.verification_status = 'FAILED';
             await this.voterRepository.save(voter);
 
             await this.logRepository.save({
                 voter,
                 status: 'FAILED',
-                message: error.message || 'Unknown scraping error',
+                message: result.error || 'Voter not found or logic error',
             });
-            this.logger.error(`Verification failed for ${voter.cedula}: ${error.message}`);
-            throw error;
+            this.logger.warn(`Verification FAILED for ${voter.cedula}: ${result.error}`);
+            // We throw here so the controller returns an error response, but we've correctly marked it as FAILED in DB
+            throw new Error(result.error);
         }
     }
 
     findAll() {
         return this.voterRepository.find({ order: { created_at: 'DESC' } });
+    }
+
+    async findAllByUser(userId: string, page: number = 1, limit: number = 10) {
+        const [items, total] = await this.voterRepository.findAndCount({
+            where: { created_by: { id: userId } },
+            order: { created_at: 'DESC' },
+            take: limit,
+            skip: (page - 1) * limit,
+            relations: ['leader']
+        });
+
+        return {
+            items,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
     }
 
     findOne(id: string) {

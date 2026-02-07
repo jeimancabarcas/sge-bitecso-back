@@ -1,5 +1,5 @@
 
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { VotersService } from './voters.service';
 import { CreateVoterDto } from './dto/create-voter.dto';
 import { UpdateVoterDto } from './dto/update-voter.dto';
@@ -25,6 +25,12 @@ export class VotersController {
     @Post(':id/verify')
     verify(@Param('id') id: string) {
         return this.votersService.verifyVoter(id);
+    }
+
+    @Get('my-records')
+    @Roles(UserRole.DIGITADOR, UserRole.ADMIN)
+    getMyRecords(@Request() req, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+        return this.votersService.findAllByUser(req.user.id, +page, +limit);
     }
 
     @Get()

@@ -151,12 +151,12 @@ export class ScraperService {
         return { success: false, error: errorMessage };
       }, cedula);
 
-      if (!result.success) {
-        throw new Error(result.error);
+      if (result.success) {
+        console.log(`[${Date.now() - startTime}ms] Data extracted successfully`);
+      } else {
+        console.log(`[${Date.now() - startTime}ms] Scraping finished with logic rejection: ${result.error}`);
       }
-
-      console.log(`[${Date.now() - startTime}ms] Data extracted successfully`);
-      return result.data;
+      return result;
 
     } catch (error) {
       console.error(`[${Date.now() - startTime}ms] Scraping error:`, error);
