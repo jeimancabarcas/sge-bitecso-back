@@ -1,5 +1,5 @@
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateVoterDto } from './dto/create-voter.dto';
@@ -21,12 +21,19 @@ export class VotersService {
     ) { }
 
     async create(createVoterDto: CreateVoterDto) {
-        const voter = this.voterRepository.create(createVoterDto);
-        // If leader_id is passed, TypeORM maps it to the column.
+        try {
+            const voter = this.voterRepository.create(createVoterDto);
+            // If leader_id is passed, TypeORM maps it to the column.
 
-        const savedVoter = await this.voterRepository.save(voter);
-
-        return savedVoter;
+            const savedVoter = await this.voterRepository.save(voter);
+            return savedVoter;
+        } catch (error) {
+            if (error.code === '23505') { // Postgres unique violation code
+                throw new ConflictException(`Voter with cedula ${createVoterDto.cedula} already exists`);
+            }
+            this.logger.error(`Error creating voter: ${error.message}`, error.stack);
+            throw new InternalServerErrorException('Failed to create voter');
+        }
     }
 
     async verifyVoter(id: string) {
