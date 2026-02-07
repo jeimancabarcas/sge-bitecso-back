@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class VoterDto {
     @ApiProperty({ description: 'Cédula of the voter (numeric string)', example: '1234567890' })
-    @IsNumberString({}, { message: 'Cédula must be a numeric string' })
+    @IsNumberString({}, { message: 'La cédula debe ser una cadena numérica' })
     @IsNotEmpty()
     cedula: string;
 

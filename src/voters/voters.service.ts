@@ -61,16 +61,16 @@ export class VotersService {
             return savedVoter;
         } catch (error) {
             if (error.code === '23505') { // Postgres unique violation code
-                throw new ConflictException(`Voter with cedula ${createVoterDto.cedula} already exists`);
+                throw new ConflictException(`El votante con cédula ${createVoterDto.cedula} ya existe`);
             }
             this.logger.error(`Error creating voter: ${error.message}`, error.stack);
-            throw new InternalServerErrorException('Failed to create voter');
+            throw new InternalServerErrorException('Error al crear el votante');
         }
     }
 
     async verifyVoter(id: string) {
         const voter = await this.voterRepository.findOneBy({ id });
-        if (!voter) throw new Error('Voter not found');
+        if (!voter) throw new Error('Votante no encontrado');
 
         this.logger.log(`Verifying voter ${voter.cedula}...`);
 
@@ -85,7 +85,7 @@ export class VotersService {
             await this.logRepository.save({
                 voter,
                 status: 'ERROR',
-                message: error.message || 'Technical error during verification',
+                message: error.message || 'Error técnico durante la verificación',
             });
             this.logger.error(`Verification ERROR for ${voter.cedula}: ${error.message}`);
             throw error;
@@ -113,7 +113,7 @@ export class VotersService {
             await this.logRepository.save({
                 voter,
                 status: 'SUCCESS',
-                message: 'Data verified successfully',
+                message: 'Datos verificados con éxito',
             });
 
             this.logger.log(`Voter ${voter.cedula} verified successfully.`);
@@ -126,7 +126,7 @@ export class VotersService {
             await this.logRepository.save({
                 voter,
                 status: 'FAILED',
-                message: result.error || 'Voter not found or logic error',
+                message: result.error || 'Votante no encontrado o error de lógica',
             });
             this.logger.warn(`Verification FAILED for ${voter.cedula}: ${result.error}`);
             // We throw here so the controller returns an error response, but we've correctly marked it as FAILED in DB
@@ -181,7 +181,7 @@ export class VotersService {
     }
 
     update(id: number, updateVoterDto: UpdateVoterDto) {
-        return `This action updates a #${id} voter`;
+        return `Esta acción actualiza al votante #${id}`;
     }
 
     async getDashboardStats() {

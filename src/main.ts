@@ -14,8 +14,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor());
 
   const config = new DocumentBuilder()
-    .setTitle('Electoral Management System')
-    .setDescription('The Electoral Management API description')
+    .setTitle('Sistema de Gestión Electoral')
+    .setDescription('Descripción de la API del Sistema de Gestión Electoral')
     .setVersion('1.0')
     .addTag('voters')
     .addBearerAuth()

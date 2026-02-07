@@ -4,16 +4,15 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
     @ApiProperty()
-    @IsNotEmpty()
+    @IsNotEmpty({ message: 'El nombre de usuario es requerido' })
     @IsString()
     username: string;
 
     @ApiProperty()
-    @IsNotEmpty()
+    @IsNotEmpty({ message: 'La contraseña es requerida' })
     @IsString()
     password: string;
 
-    @ApiProperty({ required: false })
     @ApiProperty({ required: false })
     @IsOptional()
     @IsString()

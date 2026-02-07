@@ -27,19 +27,30 @@ export class UsersService {
     }
 
     async findOne(username: string): Promise<User | null> {
-        return this.userRepository.findOne({ where: { username } });
+        return this.userRepository.findOne({
+            where: { username },
+            select: ['id', 'username', 'password', 'role', 'fullName']
+        });
     }
 
     async findAllByRole(role: UserRole): Promise<User[]> {
-        return this.userRepository.find({ where: { role } });
+        return this.userRepository.find({
+            where: { role },
+            select: ['id', 'username', 'fullName', 'role', 'created_at', 'updated_at']
+        });
     }
 
     async findAll(): Promise<User[]> {
-        return this.userRepository.find();
+        return this.userRepository.find({
+            select: ['id', 'username', 'fullName', 'role', 'created_at', 'updated_at']
+        });
     }
 
     async findOneById(id: string): Promise<User | null> {
-        return this.userRepository.findOne({ where: { id } });
+        return this.userRepository.findOne({
+            where: { id },
+            select: ['id', 'username', 'fullName', 'role', 'created_at', 'updated_at']
+        });
     }
 
     async update(id: string, updateUserDto: any): Promise<User | null> {

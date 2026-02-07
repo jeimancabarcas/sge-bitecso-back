@@ -19,9 +19,9 @@ export class LeadersService {
             return await this.leaderRepository.save(leader);
         } catch (error) {
             if (error.code === '23505') {
-                throw new ConflictException(`Leader with cedula ${createLeaderDto.cedula} already exists`);
+                throw new ConflictException(`El líder con cédula ${createLeaderDto.cedula} ya existe`);
             }
-            throw new InternalServerErrorException('Failed to create leader');
+            throw new InternalServerErrorException('Error al crear el líder');
         }
     }
 

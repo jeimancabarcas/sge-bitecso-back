@@ -4,9 +4,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateVoterDto {
     @ApiProperty({ description: 'The unique ID/Cedula of the voter' })
-    @IsNotEmpty()
+    @IsNotEmpty({ message: 'La cédula es requerida' })
     @IsString()
-    @Matches(/^[0-9]+$/, { message: 'cedula must contain only numbers' })
+    @Matches(/^[0-9]+$/, { message: 'La cédula debe contener solo números' })
     cedula: string;
 
     @ApiPropertyOptional({ description: 'Full name of the voter' })
@@ -17,7 +17,7 @@ export class CreateVoterDto {
     @ApiPropertyOptional({ description: 'Phone number of the voter' })
     @IsOptional()
     @IsString()
-    @Matches(/^[0-9]{10}$/, { message: 'telefono must be exactly 10 numbers' })
+    @Matches(/^[0-9]{10}$/, { message: 'El teléfono debe tener exactamente 10 números' })
     telefono?: string;
 
     @ApiPropertyOptional({ description: 'ID of the leader in charge (UUID)' })

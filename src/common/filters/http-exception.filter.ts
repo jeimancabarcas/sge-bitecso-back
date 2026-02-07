@@ -23,7 +23,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const exceptionResponse =
             exception instanceof HttpException
                 ? exception.getResponse()
-                : { message: 'Internal server error' };
+                : { message: 'Error interno del servidor' };
 
         let message = '';
         if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
@@ -34,6 +34,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
             }
         } else {
             message = exceptionResponse as string;
+        }
+
+        // Traducir mensajes comunes si son genéricos
+        if (message === 'Forbidden resource' || message === 'Forbidden') {
+            message = 'No tienes permisos para realizar esta acción';
+        } else if (message === 'Unauthorized') {
+            message = 'No autorizado';
+        } else if (message === 'Bad Request') {
+            message = 'Solicitud incorrecta';
+        } else if (message === 'Not Found') {
+            message = 'Recurso no encontrado';
         }
 
         response.status(status).json({

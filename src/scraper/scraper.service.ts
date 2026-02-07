@@ -138,7 +138,7 @@ export class ScraperService {
         const bodyText = document.body.innerText;
         const notFoundText = `El documento de identidad número ${cedula} no se encuentra en el censo`;
 
-        let errorMessage = 'Unknown error occurred during scraping';
+        let errorMessage = 'Ocurrió un error desconocido durante el scraping';
 
         if (errorDiv && errorDiv.offsetParent !== null && errorDiv.innerText.trim().length > 0) {
           errorMessage = errorDiv.innerText.trim();
@@ -161,7 +161,7 @@ export class ScraperService {
     } catch (error) {
       console.error(`[${Date.now() - startTime}ms] Scraping error:`, error);
       throw new HttpException(
-        'Failed to scrape data: ' + error.message,
+        'Error al extraer datos: ' + error.message,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     } finally {
@@ -219,9 +219,9 @@ export class ScraperService {
         attempts++;
       }
 
-      throw new Error('CapSolver Timeout');
+      throw new Error('Tiempo de espera de CapSolver agotado');
     } catch (error) {
-      throw new Error(`Captcha Solving Failed: ${error.message}`);
+      throw new Error(`Error al resolver el Captcha: ${error.message}`);
     }
   }
 }
