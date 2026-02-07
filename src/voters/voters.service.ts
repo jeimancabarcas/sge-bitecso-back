@@ -7,6 +7,7 @@ import { UpdateVoterDto } from './dto/update-voter.dto';
 import { Voter } from './entities/voter.entity';
 import { VerificationLog } from './entities/verification-log.entity';
 import { ScraperService } from '../scraper/scraper.service';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class VotersService {
@@ -20,9 +21,12 @@ export class VotersService {
         private readonly scraperService: ScraperService,
     ) { }
 
-    async create(createVoterDto: CreateVoterDto) {
+    async create(createVoterDto: CreateVoterDto, user: User) {
         try {
-            const voter = this.voterRepository.create(createVoterDto);
+            const voter = this.voterRepository.create({
+                ...createVoterDto,
+                created_by: { id: user.id } as User,
+            });
             // If leader_id is passed, TypeORM maps it to the column.
 
             const savedVoter = await this.voterRepository.save(voter);

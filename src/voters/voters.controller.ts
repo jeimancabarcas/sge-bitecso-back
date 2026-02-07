@@ -1,15 +1,16 @@
 
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { VotersService } from './voters.service';
 import { CreateVoterDto } from './dto/create-voter.dto';
 import { UpdateVoterDto } from './dto/update-voter.dto';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 
 @ApiTags('voters')
+@ApiBearerAuth()
 @Controller('voters')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class VotersController {
@@ -17,8 +18,8 @@ export class VotersController {
 
     @Post()
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
-    create(@Body() createVoterDto: CreateVoterDto) {
-        return this.votersService.create(createVoterDto);
+    create(@Body() createVoterDto: CreateVoterDto, @Request() req) {
+        return this.votersService.create(createVoterDto, req.user);
     }
 
     @Post(':id/verify')

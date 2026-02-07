@@ -2,6 +2,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { VerificationLog } from './verification-log.entity';
 import { Leader } from '../../leaders/entities/leader.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity()
 export class Voter {
@@ -23,6 +24,10 @@ export class Voter {
     @ManyToOne(() => Leader, (leader) => leader.voters)
     @JoinColumn({ name: 'leader_id' })
     leader: Leader;
+
+    @ManyToOne(() => User)
+    @JoinColumn({ name: 'created_by' })
+    created_by: User;
 
     @Column({ default: 'PENDING' })
     verification_status: string; // PENDING, SUCCESS, FAILED
