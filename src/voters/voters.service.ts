@@ -22,8 +22,9 @@ export class VotersService {
 
     async create(createVoterDto: CreateVoterDto) {
         const voter = this.voterRepository.create(createVoterDto);
-        const savedVoter = await this.voterRepository.save(voter);
+        // If leader_id is passed, TypeORM maps it to the column.
 
+        const savedVoter = await this.voterRepository.save(voter);
 
         return savedVoter;
     }
@@ -38,7 +39,7 @@ export class VotersService {
             const data = await this.scraperService.extractVoterData(voter.cedula);
 
             // Success
-            voter.is_verified = true;
+            voter.verification_status = 'SUCCESS';
             voter.registraduria_data = data;
             await this.voterRepository.save(voter);
 
@@ -52,6 +53,9 @@ export class VotersService {
             return data;
         } catch (error) {
             // Failed
+            voter.verification_status = 'FAILED';
+            await this.voterRepository.save(voter);
+
             await this.logRepository.save({
                 voter,
                 status: 'FAILED',

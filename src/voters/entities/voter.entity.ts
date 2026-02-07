@@ -1,6 +1,7 @@
 
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { VerificationLog } from './verification-log.entity';
+import { Leader } from '../../leaders/entities/leader.entity';
 
 @Entity()
 export class Voter {
@@ -17,10 +18,14 @@ export class Voter {
     telefono: string;
 
     @Column({ nullable: true })
-    nombre_lider: string;
+    leader_id: string;
 
-    @Column({ default: false })
-    is_verified: boolean;
+    @ManyToOne(() => Leader, (leader) => leader.voters)
+    @JoinColumn({ name: 'leader_id' })
+    leader: Leader;
+
+    @Column({ default: 'PENDING' })
+    verification_status: string; // PENDING, SUCCESS, FAILED
 
     @Column({ type: 'jsonb', nullable: true })
     registraduria_data: any;

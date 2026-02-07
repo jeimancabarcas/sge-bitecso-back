@@ -18,8 +18,8 @@ export class CreateVoterDto {
     @IsString()
     telefono?: string;
 
-    @ApiPropertyOptional({ description: 'Name of the leader in charge' })
+    @ApiPropertyOptional({ description: 'ID of the leader in charge (UUID)' })
     @IsOptional()
     @IsString()
-    nombre_lider?: string;
+    leader_id?: string;
 }

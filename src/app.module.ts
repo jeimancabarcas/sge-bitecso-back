@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VotersModule } from './voters/voters.module';
 import { ScraperModule } from './scraper/scraper.module';
+import { LeadersModule } from './leaders/leaders.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ScraperModule } from './scraper/scraper.module';
     }),
     VotersModule,
     ScraperModule,
+    LeadersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
