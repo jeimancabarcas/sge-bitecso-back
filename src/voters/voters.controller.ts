@@ -1,41 +1,40 @@
 
-import { Controller, Post, Body, Param, HttpException, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { ScraperService } from '../scraper/scraper.service';
-import { VoterDto } from './dto/voter.dto';
+import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { VotersService } from './voters.service';
+import { CreateVoterDto } from './dto/create-voter.dto';
+import { UpdateVoterDto } from './dto/update-voter.dto';
 
-@ApiTags('voters')
 @Controller('voters')
 export class VotersController {
-    constructor(private readonly scraperService: ScraperService) { }
+    constructor(private readonly votersService: VotersService) { }
 
-    @Post('validate/:cedula')
-    @ApiOperation({ summary: 'Validate a voter by cedula and retrieve data from external source' })
-    @ApiParam({ name: 'cedula', description: 'The cedula to validate' })
-    @ApiResponse({ status: 200, description: 'Voter data retrieved successfully.' })
-    @ApiResponse({ status: 500, description: 'Internal server error during scraping.' })
-    async validateVoter(@Param('cedula') cedula: string, @Body() voterData: VoterDto) {
-        try {
-            const externalData = await this.scraperService.extractVoterData(cedula);
+    @Post()
+    create(@Body() createVoterDto: CreateVoterDto) {
+        return this.votersService.create(createVoterDto);
+    }
 
-            // Merge external data with provided data (or just return external depending on logic)
-            // Here we assume we want to enrich the incoming DTO or just return the scraped info to confirm
-            // For now, returning the combination of what was found
+    @Post(':id/verify')
+    verify(@Param('id') id: string) {
+        return this.votersService.verifyVoter(id);
+    }
 
-            const result = {
-                ...voterData,
-                ...externalData, // Overwrite/Add polling station and table from scraper
-            };
+    @Get()
+    findAll() {
+        return this.votersService.findAll();
+    }
 
-            // TODO: Save to database using a generic repository interface
-            // repository.save(result);
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.votersService.findOne(id);
+    }
 
-            return result;
-        } catch (error) {
-            throw new HttpException(
-                error.message || 'Failed to validate voter',
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+    @Patch(':id')
+    update(@Param('id') id: string, @Body() updateVoterDto: UpdateVoterDto) {
+        return this.votersService.update(+id, updateVoterDto);
+    }
+
+    @Delete(':id')
+    remove(@Param('id') id: string) {
+        return this.votersService.remove(+id);
     }
 }
