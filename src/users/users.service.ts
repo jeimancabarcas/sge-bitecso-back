@@ -28,4 +28,8 @@ export class UsersService {
     async findOne(username: string): Promise<User | null> {
         return this.userRepository.findOne({ where: { username } });
     }
+
+    async findAllByRole(role: UserRole): Promise<User[]> {
+        return this.userRepository.find({ where: { role } });
+    }
 }

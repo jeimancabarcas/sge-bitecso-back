@@ -7,10 +7,16 @@ import { Voter } from './entities/voter.entity';
 import { VerificationLog } from './entities/verification-log.entity';
 import { ScraperModule } from '../scraper/scraper.module';
 
+import { VoterDetail } from './entities/voter-detail.entity';
+import { UsersModule } from '../users/users.module';
+import { LeadersModule } from '../leaders/leaders.module';
+
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Voter, VerificationLog]),
+        TypeOrmModule.forFeature([Voter, VerificationLog, VoterDetail]),
         ScraperModule,
+        UsersModule,
+        LeadersModule,
     ],
     controllers: [VotersController],
     providers: [VotersService],

@@ -1,5 +1,6 @@
 
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { VotersService } from './voters.service';
 import { CreateVoterDto } from './dto/create-voter.dto';
 import { UpdateVoterDto } from './dto/update-voter.dto';
@@ -27,6 +28,30 @@ export class VotersController {
         return this.votersService.verifyVoter(id);
     }
 
+    @Get('report')
+    @Roles(UserRole.ADMIN)
+    async downloadReport(@Res() res: Response) {
+        return this.votersService.generateReport(res);
+    }
+
+    @Get('dashboard-stats')
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    getDashboardStats() {
+        return this.votersService.getDashboardStats();
+    }
+
+    @Get('digitators-stats')
+    @Roles(UserRole.ADMIN)
+    getDigitatorsStats() {
+        return this.votersService.getDigitatorsStats();
+    }
+
+    @Get('leaders-stats')
+    @Roles(UserRole.ADMIN)
+    getLeadersStats() {
+        return this.votersService.getLeadersStats();
+    }
+
     @Get('my-records')
     @Roles(UserRole.DIGITADOR, UserRole.ADMIN)
     getMyRecords(@Request() req, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
@@ -34,8 +59,8 @@ export class VotersController {
     }
 
     @Get()
-    findAll() {
-        return this.votersService.findAll();
+    findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+        return this.votersService.findAll(+page, +limit);
     }
 
     @Get(':id')
@@ -48,8 +73,4 @@ export class VotersController {
         return this.votersService.update(+id, updateVoterDto);
     }
 
-    @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.votersService.remove(+id);
-    }
 }

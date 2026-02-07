@@ -1,8 +1,9 @@
 
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 import { VerificationLog } from './verification-log.entity';
 import { Leader } from '../../leaders/entities/leader.entity';
 import { User } from '../../users/entities/user.entity';
+import { VoterDetail } from './voter-detail.entity';
 
 @Entity()
 export class Voter {
@@ -32,8 +33,8 @@ export class Voter {
     @Column({ default: 'PENDING' })
     verification_status: string; // PENDING, SUCCESS, FAILED
 
-    @Column({ type: 'jsonb', nullable: true })
-    registraduria_data: any;
+    @OneToOne(() => VoterDetail, (detail) => detail.voter, { cascade: true })
+    detail: VoterDetail;
 
     @OneToMany(() => VerificationLog, (log) => log.voter)
     verification_logs: VerificationLog[];
