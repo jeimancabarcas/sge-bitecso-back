@@ -11,14 +11,19 @@ import { ChiefsModule } from './chiefs/chiefs.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 
+import { ConfigModule } from '@nestjs/config';
+
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      url: 'postgres://avnadmin:AVNS_2ka5WyZnY42PnThUJm2@tranquility-db-tranquility.h.aivencloud.com:10093/defaultdb',
-      schema: 'sge-bitecto',
-      ssl: { rejectUnauthorized: false }, // Keeping this as Aiven usually requires it.
+      url: process.env.DATABASE_URL,
+      schema: process.env.DATABASE_SCHEMA || 'public',
+      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
       autoLoadEntities: true,
       synchronize: true, // DEV ONLY
     }),

@@ -3,21 +3,30 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import puppeteer from 'puppeteer-extra';
 import RecaptchaPlugin from 'puppeteer-extra-plugin-recaptcha';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
 @Injectable()
 export class ScraperService {
-  private readonly CAPSOLVER_API_KEY = 'CAP-9E43F38FF6E13631D931B85B3944641C6ABFC6F93AA63325605ABFCA8BFD2390';
-  private readonly SITE_KEY = '6LcthjAgAAAAAFIQLxy52074zanHv47cIvmIHglH';
-  private readonly TARGET_URL = 'https://wsp.registraduria.gov.co/censo/consultar/';
+  private readonly CAPSOLVER_API_KEY: string;
+  private readonly SITE_KEY: string;
+  private readonly TARGET_URL: string;
 
   // DataImpulse Proxies
-  private readonly PROXY_HOST = 'gw.dataimpulse.com';
-  private readonly PROXY_PORT = '823';
-  private readonly PROXY_USER = '2d27a9092e07cfda7084';
-  private readonly PROXY_PASS = '1db11524e4ed9c39';
+  private readonly PROXY_HOST: string;
+  private readonly PROXY_PORT: string;
+  private readonly PROXY_USER: string;
+  private readonly PROXY_PASS: string;
 
-  constructor() {
+  constructor(private configService: ConfigService) {
+    this.CAPSOLVER_API_KEY = this.configService.get<string>('CAPSOLVER_API_KEY') || '';
+    this.SITE_KEY = this.configService.get<string>('RECAPTCHA_SITE_KEY') || '';
+    this.TARGET_URL = this.configService.get<string>('TARGET_URL') || '';
+    this.PROXY_HOST = this.configService.get<string>('PROXY_HOST') || '';
+    this.PROXY_PORT = this.configService.get<string>('PROXY_PORT') || '';
+    this.PROXY_USER = this.configService.get<string>('PROXY_USER') || '';
+    this.PROXY_PASS = this.configService.get<string>('PROXY_PASS') || '';
+
     puppeteer.use(StealthPlugin());
     puppeteer.use(
       RecaptchaPlugin({
