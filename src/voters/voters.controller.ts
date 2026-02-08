@@ -29,7 +29,7 @@ export class VotersController {
     }
 
     @Get('report')
-    @Roles(UserRole.ADMIN)
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
     async downloadReport(@Res() res: Response) {
         return this.votersService.generateReport(res);
     }
