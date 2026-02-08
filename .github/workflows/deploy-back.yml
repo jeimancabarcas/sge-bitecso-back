@@ -1,0 +1,28 @@
+name: Deploy Backend Bitecso
+
+on:
+  push:
+    branches:
+      - main # Cambia a master si esa es tu rama principal
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Executing remote ssh commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/sge-bitecso-back
+            git pull origin main
+            npm install
+            npm run build
+            # Reiniciamos con PM2 para aplicar cambios
+            pm2 restart rj-api 
+            pm2 save
