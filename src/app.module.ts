@@ -7,6 +7,7 @@ import { ScraperModule } from './scraper/scraper.module';
 import { LeadersModule } from './leaders/leaders.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { ChiefsModule } from './chiefs/chiefs.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -26,6 +27,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     LeadersModule,
     AuthModule,
     UsersModule,
+    ChiefsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

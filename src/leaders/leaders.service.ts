@@ -26,11 +26,17 @@ export class LeadersService {
     }
 
     findAll() {
-        return this.leaderRepository.find({ order: { created_at: 'DESC' } });
+        return this.leaderRepository.find({
+            order: { created_at: 'DESC' },
+            relations: ['chief']
+        });
     }
 
     findOne(id: string) {
-        return this.leaderRepository.findOneBy({ id });
+        return this.leaderRepository.findOne({
+            where: { id },
+            relations: ['chief']
+        });
     }
 
     async update(id: string, updateLeaderDto: UpdateLeaderDto) {

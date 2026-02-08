@@ -1,6 +1,7 @@
 
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { Voter } from '../../voters/entities/voter.entity';
+import { Chief } from '../../chiefs/entities/chief.entity';
 
 @Entity()
 export class Leader {
@@ -16,8 +17,12 @@ export class Leader {
     @Column({ nullable: true })
     telefono: string;
 
+    @ManyToOne(() => Chief, (chief) => chief.leaders, { nullable: true })
+    @JoinColumn({ name: 'chief_id' })
+    chief: Chief;
+
     @Column({ nullable: true })
-    jefe: string;
+    chief_id: string;
 
     @OneToMany(() => Voter, (voter) => voter.leader)
     voters: Voter[];
