@@ -44,6 +44,27 @@ export class ChiefsService {
         return this.findOne(id);
     }
 
+    async getChiefsStats() {
+        const stats = await this.chiefRepository.createQueryBuilder('chief')
+            .leftJoin('chief.leaders', 'leader')
+            .leftJoin('leader.voters', 'voter')
+            .select([
+                'chief.id as id',
+                'chief.nombre as nombre',
+                'chief.cedula as cedula',
+                'COUNT(DISTINCT leader.id) as totalLeaders',
+                'COUNT(DISTINCT voter.id) as totalVoters'
+            ])
+            .groupBy('chief.id')
+            .getRawMany();
+
+        return stats.map(s => ({
+            ...s,
+            totalLeaders: parseInt(s.totalleaders || s.totalLeaders || '0'),
+            totalVoters: parseInt(s.totalvoters || s.totalVoters || '0')
+        }));
+    }
+
     remove(id: string) {
         return this.chiefRepository.delete(id);
     }

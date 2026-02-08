@@ -28,6 +28,12 @@ export class ChiefsController {
         return this.chiefsService.findAll();
     }
 
+    @Get('stats')
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    getStats() {
+        return this.chiefsService.getChiefsStats();
+    }
+
     @Get(':id')
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
     findOne(@Param('id') id: string) {
