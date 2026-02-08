@@ -14,7 +14,7 @@ import { UseGuards } from '@nestjs/common';
 @ApiBearerAuth()
 @Controller('leaders')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.DIGITADOR)
 export class LeadersController {
     constructor(private readonly leadersService: LeadersService) { }
 
@@ -24,13 +24,11 @@ export class LeadersController {
     }
 
     @Get()
-    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
     findAll() {
         return this.leadersService.findAll();
     }
 
     @Get(':id')
-    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
     findOne(@Param('id') id: string) {
         return this.leadersService.findOne(id);
     }
@@ -41,6 +39,7 @@ export class LeadersController {
     }
 
     @Delete(':id')
+    @Roles(UserRole.ADMIN)
     remove(@Param('id') id: string) {
         return this.leadersService.remove(id);
     }
