@@ -149,9 +149,11 @@ export class VotersService {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
             .leftJoinAndSelect('voter.detail', 'detail')
+            .leftJoinAndSelect('voter.verification_logs', 'logs')
             .leftJoin('voter.created_by', 'created_by')
             .addSelect(['created_by.id', 'created_by.username', 'created_by.role'])
             .orderBy('voter.created_at', 'DESC')
+            .addOrderBy('logs.attempted_at', 'DESC')
             .take(limit)
             .skip((page - 1) * limit);
 
@@ -169,10 +171,13 @@ export class VotersService {
     async findAllByUser(userId: string, page: number = 1, limit: number = 10) {
         const [items, total] = await this.voterRepository.findAndCount({
             where: { created_by: { id: userId } },
-            order: { created_at: 'DESC' },
+            order: {
+                created_at: 'DESC',
+                verification_logs: { attempted_at: 'DESC' }
+            },
             take: limit,
             skip: (page - 1) * limit,
-            relations: ['leader', 'detail']
+            relations: ['leader', 'detail', 'verification_logs']
         });
 
         return {
