@@ -20,22 +20,33 @@ export class VotersService {
 
     @Cron('0 * * * * *')
     async handleCron() {
-        this.logger.debug('Running Cron: Checking for pending voters to verify...');
+        this.logger.debug('Cron: Buscando votantes pendientes...');
 
-        const voter = await this.voterRepository.findOne({
+        // Primero buscamos los PENDING
+        let voter = await this.voterRepository.findOne({
             where: { verification_status: 'PENDING' },
             order: { created_at: 'ASC' },
         });
 
+        // Si no hay PENDING, buscamos en estado ERROR para reintentar
+        if (!voter) {
+            this.logger.debug('Cron: No hay votantes pendientes. Buscando votantes en ERROR para reintentar...');
+            voter = await this.voterRepository.findOne({
+                where: { verification_status: 'ERROR' },
+                order: { created_at: 'ASC' },
+            });
+        }
+
         if (voter) {
-            this.logger.log(`Cron: Found pending voter ${voter.cedula}. Starting verification.`);
+            const statusLabel = voter.verification_status === 'PENDING' ? 'pendiente' : 'en error (reintento)';
+            this.logger.log(`Cron: Iniciando verificación para votante ${voter.cedula} (${statusLabel}).`);
             try {
                 await this.verifyVoter(voter.id);
             } catch (error) {
-                this.logger.error(`Cron: Verification failed for ${voter.cedula}`, error.stack);
+                this.logger.error(`Cron: Falló la verificación para ${voter.cedula}`, error.stack);
             }
         } else {
-            this.logger.debug('Cron: No pending voters found.');
+            this.logger.debug('Cron: No hay votantes para procesar.');
         }
     }
 
