@@ -38,6 +38,7 @@ jobs:
 
             # Scraper Configuration
             echo "CAPSOLVER_API_KEY=${{ secrets.CAPSOLVER_API_KEY }}" >> .env
+            echo "TWOCAPTCHA_API_KEY=${{ secrets.TWOCAPTCHA_API_KEY }}" >> .env
             echo "RECAPTCHA_SITE_KEY=${{ secrets.RECAPTCHA_SITE_KEY }}" >> .env
             echo "TARGET_URL=${{ secrets.TARGET_URL }}" >> .env
 
