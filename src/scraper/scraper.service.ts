@@ -77,32 +77,36 @@ export class ScraperService {
       }
 
       await page.evaluate((token) => {
-        let el = document.getElementById('g-recaptcha-response');
-        if (!el) {
-          el = document.querySelector('[name="g-recaptcha-response"]');
-        }
-
+        const el = (document.getElementById('g-recaptcha-response') || document.querySelector('[name="g-recaptcha-response"]')) as HTMLTextAreaElement;
         if (el) {
+          el.value = token;
           el.innerHTML = token;
-        } else {
-          console.error('ERROR: g-recaptcha-response element NOT found in DOM.');
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }, captchaSolution);
-      console.log(`[${Date.now() - startTime}ms] Captcha injected`);
+      console.log(`[${Date.now() - startTime}ms] Captcha injected and events dispatched`);
 
       // 4. Submit Form
       const submitButtonSelector = '#root > main > section.max-w-content.mx-auto.md\\:flex.justify-center.relative.md\\:my-20.mb-20 > div > button';
       try {
+        console.log(`[${Date.now() - startTime}ms] Waiting for button to enable (20s max)...`);
         await page.waitForFunction((selector) => {
           const btn = document.querySelector(selector) as HTMLButtonElement;
           return btn && !btn.disabled;
-        }, { timeout: 10000 }, submitButtonSelector);
-
-        await page.click(submitButtonSelector);
+        }, { timeout: 20000 }, submitButtonSelector);
       } catch (e) {
-        console.log(`[${Date.now() - startTime}ms] Warning: Submit button not enabled or found after timeout.`);
-        throw new Error('No se pudo encontrar o activar el botón de consulta después de 10 segundos.');
+        console.log(`[${Date.now() - startTime}ms] Button still disabled after wait, forcing activation...`);
+        await page.evaluate((selector) => {
+          const btn = document.querySelector(selector) as HTMLButtonElement;
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('disabled:opacity-60', 'disabled:cursor-not-allowed');
+          }
+        }, submitButtonSelector);
       }
+
+      await page.click(submitButtonSelector);
       console.log(`[${Date.now() - startTime}ms] Form submitted`);
 
       // 5. Extract Results
