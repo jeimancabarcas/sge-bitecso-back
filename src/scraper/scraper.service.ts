@@ -91,9 +91,21 @@ export class ScraperService {
       console.log(`[${Date.now() - startTime}ms] Captcha injected`);
 
       // 4. Submit Form
-      await Promise.all([
-        page.click('#enviar'),
-      ]);
+      const submitButtonSelector = 'button.bg-general-button';
+      try {
+        await page.waitForFunction((selector) => {
+          const btn = document.querySelector(selector) as HTMLButtonElement;
+          return btn && !btn.disabled;
+        }, { timeout: 10000 }, submitButtonSelector);
+
+        await page.click(submitButtonSelector);
+      } catch (e) {
+        console.log(`[${Date.now() - startTime}ms] Warning: Submit button not enabled or found, attempting emergency click...`);
+        await page.evaluate((selector) => {
+          const btn = document.querySelector(selector) as HTMLButtonElement;
+          if (btn) btn.click();
+        }, submitButtonSelector);
+      }
       console.log(`[${Date.now() - startTime}ms] Form submitted`);
 
       // 5. Extract Results
