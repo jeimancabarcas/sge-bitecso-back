@@ -72,6 +72,14 @@ export class VotersService {
             return savedVoter;
         } catch (error) {
             if (error.code === '23505') { // Postgres unique violation code
+                const existingVoter = await this.voterRepository.findOne({
+                    where: { cedula: createVoterDto.cedula },
+                    relations: ['leader']
+                });
+
+                if (existingVoter?.leader) {
+                    throw new ConflictException(`El votante con cédula ${createVoterDto.cedula} ya existe y pertenece al líder ${existingVoter.leader.nombre}`);
+                }
                 throw new ConflictException(`El votante con cédula ${createVoterDto.cedula} ya existe`);
             }
             this.logger.error(`Error creating voter: ${error.message}`, error.stack);
