@@ -1,255 +1,118 @@
-
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import puppeteer from 'puppeteer-extra';
-import RecaptchaPlugin from 'puppeteer-extra-plugin-recaptcha';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { Solver } from '2captcha';
+import { HttpsProxyAgent } from 'https-proxy-agent'; // <--- Importante
 
 @Injectable()
 export class ScraperService {
-  private readonly CAPSOLVER_API_KEY: string;
+  private readonly TWOCAPTCHA_API_KEY: string;
   private readonly SITE_KEY: string;
   private readonly TARGET_URL: string;
+  private readonly API_ENDPOINT = 'https://apiweb-eleccionescolombia.infovotantes.com/api/v1/citizen/get-information';
 
-  // DataImpulse Proxies
-  private readonly PROXY_HOST: string;
-  private readonly PROXY_PORT: string;
-  private readonly PROXY_USER: string;
-  private readonly PROXY_PASS: string;
+  // Configuración de Proxy
+  private readonly PROXY_URL: string;
 
   constructor(private configService: ConfigService) {
-    this.CAPSOLVER_API_KEY = this.configService.get<string>('CAPSOLVER_API_KEY') || '';
+    this.TWOCAPTCHA_API_KEY = this.configService.get<string>('TWOCAPTCHA_API_KEY') || '';
     this.SITE_KEY = this.configService.get<string>('RECAPTCHA_SITE_KEY') || '';
     this.TARGET_URL = this.configService.get<string>('TARGET_URL') || '';
-    this.PROXY_HOST = this.configService.get<string>('PROXY_HOST') || '';
-    this.PROXY_PORT = this.configService.get<string>('PROXY_PORT') || '';
-    this.PROXY_USER = this.configService.get<string>('PROXY_USER') || '';
-    this.PROXY_PASS = this.configService.get<string>('PROXY_PASS') || '';
 
-    puppeteer.use(StealthPlugin());
-    puppeteer.use(
-      RecaptchaPlugin({
-        provider: {
-          id: '2captcha',
-          token: 'placeholder',
-        },
-        visualFeedback: true,
-      }),
-    );
+    // Construcción de la URL del Proxy: http://user:pass@host:port
+    const host = this.configService.get<string>('PROXY_HOST');
+    const port = this.configService.get<string>('PROXY_PORT');
+    const user = this.configService.get<string>('PROXY_USER');
+    const pass = this.configService.get<string>('PROXY_PASS');
+    this.PROXY_URL = `http://${user}:${pass}@${host}:${port}`;
   }
 
   async extractVoterData(cedula: string): Promise<any> {
     const startTime = Date.now();
-    console.log(`[${Date.now() - startTime}ms] Starting scraper for cedula: ${cedula}`);
 
-    // Local Browser Launch (Direct Connection)
-    // We only use proxy for CapSolver
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-      ],
-    });
+    // Creamos el agente que obligará a axios a salir por el proxy
+    const httpsAgent = new HttpsProxyAgent(this.PROXY_URL);
 
     try {
-      const page = await browser.newPage();
+      // 1. Resolver el captcha (PASANDO EL PROXY PARA EVITAR EL 403)
+      console.log(`[${Date.now() - startTime}ms] Solicitando token a 2Captcha (vía Proxy)...`);
+      const token = await this.solveCaptcha();
 
-      await page.goto(this.TARGET_URL, { waitUntil: 'networkidle2' });
-      console.log(`[${Date.now() - startTime}ms] Page loaded`);
+      // 2. Petición POST final con el Agente del Proxy
+      console.log(`[${Date.now() - startTime}ms] Enviando consulta a la API con Proxy...`);
 
-      // 1. Fill Cedula
-      await page.waitForSelector('#document');
-      await page.type('#document', cedula);
-      console.log(`[${Date.now() - startTime}ms] Cedula filled`);
-
-      // 2. Resolve Captcha using CapSolver (Axios polling)
-      console.log(`[${Date.now() - startTime}ms] Solving Captcha with CapSolver...`);
-      const captchaSolution = await this.solveCaptcha();
-      console.log(`[${Date.now() - startTime}ms] Captcha solved`);
-
-      // 3. Inject Captcha Solution
-      try {
-        await page.waitForSelector('#g-recaptcha-response, [name="g-recaptcha-response"]', { hidden: true, timeout: 5000 });
-      } catch (e) {
-        console.log(`[${Date.now() - startTime}ms] Warning: g-recaptcha-response textarea not found after wait.`);
-      }
-
-      await page.evaluate((token) => {
-        const el = (document.getElementById('g-recaptcha-response') || document.querySelector('[name="g-recaptcha-response"]')) as HTMLTextAreaElement;
-        if (el) {
-          el.value = token;
-          el.innerHTML = token;
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
+      const response = await axios.post(
+        this.API_ENDPOINT,
+        {
+          identification: cedula,
+          identification_type: "CC",
+          election_code: "congreso",
+          platform: "web",
+          module: "polling_place"
+        },
+        {
+          httpsAgent, // <--- Aplicamos el proxy aquí
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Origin': 'https://eleccionescolombia.registraduria.gov.co',
+            'Referer': 'https://eleccionescolombia.registraduria.gov.co/'
+          },
+          proxy: false, // Deshabilitamos el proxy nativo de axios para que no choque con el agente
+          timeout: 20000 // Aumentamos el tiempo porque los proxies pueden ser más lentos
         }
-      }, captchaSolution);
-      console.log(`[${Date.now() - startTime}ms] Captcha injected and events dispatched`);
+      );
 
-      // 4. Submit Form
-      const submitButtonSelector = '#root > main > section.max-w-content.mx-auto.md\\:flex.justify-center.relative.md\\:my-20.mb-20 > div > button';
-      try {
-        console.log(`[${Date.now() - startTime}ms] Waiting for button to enable (20s max)...`);
-        await page.waitForFunction((selector) => {
-          const btn = document.querySelector(selector) as HTMLButtonElement;
-          return btn && !btn.disabled;
-        }, { timeout: 20000 }, submitButtonSelector);
-      } catch (e) {
-        console.log(`[${Date.now() - startTime}ms] Button still disabled after wait, forcing activation...`);
-        await page.evaluate((selector) => {
-          const btn = document.querySelector(selector) as HTMLButtonElement;
-          if (btn) {
-            btn.disabled = false;
-            btn.classList.remove('disabled:opacity-60', 'disabled:cursor-not-allowed');
-          }
-        }, submitButtonSelector);
+      const apiData = response.data.data;
+
+      if (apiData.is_in_census === false) {
+        return { success: false, error: `Cédula ${cedula} no está en el censo.` };
       }
 
-      await page.click(submitButtonSelector);
-      console.log(`[${Date.now() - startTime}ms] Form submitted`);
+      const mappedData = {
+        cedula: apiData.voter?.identification || cedula,
+        pollingStation: apiData.polling_place?.stand || 'Unknown',
+        table: apiData.polling_place?.table?.toString() || 'Unknown',
+        department: apiData.polling_place?.place_address?.state || 'Unknown',
+        municipality: apiData.polling_place?.place_address?.town || 'Unknown',
+        address: apiData.polling_place?.place_address?.address || 'Unknown'
+      };
 
-      // 5. Extract Results
-      try {
-        // We wait for either a span (new structure) or the error/warning divs
-        await page.waitForSelector('span, #div_warning, #div_error', { timeout: 5000, visible: true });
-      } catch (e) {
-        console.log(`[${Date.now() - startTime}ms] Timeout waiting for results, checking page content...`);
-      }
-
-      console.log(`[${Date.now() - startTime}ms] Processing page results...`);
-
-      const result = await page.evaluate((cedula) => {
-        // Helper to find value by label text in the new flex structure
-        const getVal = (label: string) => {
-          // New flex structure (Label span followed by Value span)
-          const spans = Array.from(document.querySelectorAll('span'));
-          const labelSpan = spans.find(s => s.innerText.trim().toUpperCase() === label.toUpperCase());
-          if (labelSpan && labelSpan.parentElement) {
-            // Find all spans in the same container
-            const containerSpans = Array.from(labelSpan.parentElement.querySelectorAll('span'));
-            const labelIndex = containerSpans.indexOf(labelSpan);
-            // The value is usually the next span
-            if (labelIndex !== -1 && containerSpans[labelIndex + 1]) {
-              return containerSpans[labelIndex + 1].innerText.trim();
-            }
-          }
-          return 'Unknown';
-        };
-
-        // Evidence of success: Puesto and Mesa are present
-        const pollingStation = getVal('PUESTO');
-        const mesa = getVal('MESA');
-
-        if (pollingStation !== 'Unknown' || mesa !== 'Unknown') {
-          const extractedCedula = getVal('NUIP');
-          const department = getVal('DEPARTAMENTO');
-          const municipality = getVal('MUNICIPIO');
-          const address = getVal('DIRECCIÓN');
-
-          return {
-            success: true,
-            data: {
-              cedula: extractedCedula === 'Unknown' ? cedula : extractedCedula,
-              pollingStation,
-              table: mesa,
-              department,
-              municipality,
-              address
-            }
-          };
-        }
-
-        // 2. If no success evidence, it MUST be an error/warning
-        const warningDiv = document.getElementById('div_warning');
-        const errorDiv = document.getElementById('div_error');
-        const bodyText = document.body.innerText;
-        const notFoundText = `El documento de identidad número ${cedula} no se encuentra en el censo`;
-
-        let errorMessage = 'Ocurrió un error desconocido durante el scraping';
-
-        if (errorDiv && errorDiv.offsetParent !== null && errorDiv.innerText.trim().length > 0) {
-          errorMessage = errorDiv.innerText.trim();
-        } else if (warningDiv && warningDiv.offsetParent !== null && warningDiv.innerText.trim().length > 0) {
-          errorMessage = warningDiv.innerText.trim();
-        } else if (bodyText.includes(notFoundText)) {
-          errorMessage = notFoundText;
-        }
-
-        return { success: false, error: errorMessage };
-      }, cedula);
-
-      if (result.success) {
-        console.log(`[${Date.now() - startTime}ms] Data extracted successfully`);
-      } else {
-        console.log(`[${Date.now() - startTime}ms] Scraping finished with logic rejection: ${result.error}`);
-      }
-      return result;
+      console.log(mappedData);
+      return { success: true, data: mappedData };
 
     } catch (error) {
-      console.error(`[${Date.now() - startTime}ms] Scraping error:`, error);
-      throw new HttpException(
-        'Error al extraer datos: ' + error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    } finally {
-      if (browser) {
-        await browser.close();
+      const status = error.response?.status;
+      const errorDetail = error.response?.data || error.message;
+      console.error(`[Error ${status}]`, errorDetail);
+
+      // Si el proxy falla o Akamai bloquea el túnel
+      if (error.message.includes('tunneling socket could not be established')) {
+        throw new HttpException('Error de conexión con el Proxy de DataImpulse.', HttpStatus.BAD_GATEWAY);
       }
-      console.log(`[${Date.now() - startTime}ms] Browser closed`);
+
+      throw new HttpException(
+        status === 403 ? 'Bloqueo de Akamai vía Proxy.' : 'Error en la consulta.',
+        status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
   private async solveCaptcha(): Promise<string> {
+    const solver = new Solver(this.TWOCAPTCHA_API_KEY);
     try {
-      // 1. Create Task
-      const request = {
-        type: 'ReCaptchaV2EnterpriseTask',
-        websiteURL: this.TARGET_URL,
-        websiteKey: this.SITE_KEY,
-        proxyType: 'http',
-        proxyAddress: this.PROXY_HOST,
-        proxyPort: parseInt(this.PROXY_PORT),
-        proxyLogin: this.PROXY_USER,
-        proxyPassword: this.PROXY_PASS,
-      }
-      console.log("task request", request)
-      const createTaskResponse = await axios.post('https://api.capsolver.com/createTask', {
-        clientKey: this.CAPSOLVER_API_KEY,
-        task: request,
+      // 2Captcha necesita que el proxy no lleve el protocolo 'http://' en su campo proxy
+      const proxyFor2Captcha = this.PROXY_URL.replace('http://', '');
+      console.log(proxyFor2Captcha);
+      const result = await solver.recaptcha(this.SITE_KEY, this.TARGET_URL, {
+        proxy: proxyFor2Captcha,
+        proxytype: 'http'
       });
-
-      console.log('CapSolver CreateTask Response:', JSON.stringify(createTaskResponse.data));
-
-      if (createTaskResponse.data.errorId !== 0) {
-        throw new Error(`CapSolver CreateTask Error: ${createTaskResponse.data.errorDescription}`);
-      }
-
-      const taskId = createTaskResponse.data.taskId;
-
-      // 2. Poll for Result
-      let attempts = 0;
-      while (attempts < 30) {
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2s
-        const resultResponse = await axios.post('https://api.capsolver.com/getTaskResult', {
-          clientKey: this.CAPSOLVER_API_KEY,
-          taskId: taskId,
-        });
-
-        if (resultResponse.data.status === 'ready') {
-          return resultResponse.data.solution.gRecaptchaResponse;
-        }
-
-        if (resultResponse.data.status === 'failed') {
-          throw new Error(`CapSolver Task Failed: ${resultResponse.data.errorDescription}`);
-        }
-
-        attempts++;
-      }
-
-      throw new Error('Tiempo de espera de CapSolver agotado');
+      return result.data;
     } catch (error) {
-      throw new Error(`Error al resolver el Captcha: ${error.message}`);
+      throw new Error(`2Captcha Falló: ${error.message}`);
     }
   }
 }

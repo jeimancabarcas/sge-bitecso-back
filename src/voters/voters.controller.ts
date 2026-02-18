@@ -23,6 +23,12 @@ export class VotersController {
         return this.votersService.create(createVoterDto, req.user);
     }
 
+    @Post('process-pending')
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    processPending() {
+        return this.votersService.triggerManualVerification();
+    }
+
     @Post(':id/verify')
     verify(@Param('id') id: string) {
         return this.votersService.verifyVoter(id);

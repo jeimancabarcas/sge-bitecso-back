@@ -18,9 +18,12 @@ import { Cron } from '@nestjs/schedule';
 export class VotersService {
     private readonly logger = new Logger(VotersService.name);
 
-    @Cron('0 * * * * *')
     async handleCron() {
-        this.logger.debug('Cron: Buscando votantes pendientes...');
+        return this.triggerManualVerification();
+    }
+
+    async triggerManualVerification() {
+        this.logger.debug('Iniciando procesamiento de votantes pendientes/error...');
 
         // Primero buscamos los PENDING
         let voter = await this.voterRepository.findOne({
@@ -30,7 +33,7 @@ export class VotersService {
 
         // Si no hay PENDING, buscamos en estado ERROR para reintentar
         if (!voter) {
-            this.logger.debug('Cron: No hay votantes pendientes. Buscando votantes en ERROR para reintentar...');
+            this.logger.debug('No hay votantes pendientes. Buscando votantes en ERROR para reintentar...');
             voter = await this.voterRepository.findOne({
                 where: { verification_status: 'ERROR' },
                 order: { created_at: 'ASC' },
@@ -39,14 +42,26 @@ export class VotersService {
 
         if (voter) {
             const statusLabel = voter.verification_status === 'PENDING' ? 'pendiente' : 'en error (reintento)';
-            this.logger.log(`Cron: Iniciando verificación para votante ${voter.cedula} (${statusLabel}).`);
+            this.logger.log(`Iniciando verificación manual/cron para votante ${voter.cedula} (${statusLabel}).`);
             try {
-                await this.verifyVoter(voter.id);
+                const result = await this.verifyVoter(voter.id);
+                return {
+                    message: `Procesamiento completado para cédula ${voter.cedula}`,
+                    voter: voter.cedula,
+                    status: 'SUCCESS',
+                    data: result
+                };
             } catch (error) {
-                this.logger.error(`Cron: Falló la verificación para ${voter.cedula}`, error.stack);
+                this.logger.error(`Falló la verificación para ${voter.cedula}`, error.stack);
+                return {
+                    message: `Error al procesar cédula ${voter.cedula}: ${error.message}`,
+                    voter: voter.cedula,
+                    status: 'FAILED'
+                };
             }
         } else {
-            this.logger.debug('Cron: No hay votantes para procesar.');
+            this.logger.debug('No hay votantes para procesar.');
+            return { message: 'No hay votantes pendientes o en error para procesar' };
         }
     }
 
