@@ -60,25 +60,9 @@ export class ScraperService {
       console.log(`[${Date.now() - startTime}ms] Page loaded`);
 
       // 1. Fill Cedula
-      await page.waitForSelector('#nuip');
-      await page.type('#nuip', cedula);
+      await page.waitForSelector('#document');
+      await page.type('#document', cedula);
       console.log(`[${Date.now() - startTime}ms] Cedula filled`);
-
-      // 1b. Handle Election Select if available
-      try {
-        const selectExists = await page.$('#tipo');
-        if (selectExists) {
-          await page.evaluate(() => {
-            const select = document.querySelector('#tipo') as HTMLSelectElement;
-            if (select && select.options.length > 1) {
-              select.selectedIndex = 1;
-            }
-          });
-        }
-      } catch (e) {
-        console.log(`[${Date.now() - startTime}ms] Select handling warning: `, e);
-      }
-      console.log(`[${Date.now() - startTime}ms] Election selected`);
 
       // 2. Resolve Captcha using CapSolver (Axios polling)
       console.log(`[${Date.now() - startTime}ms] Solving Captcha with CapSolver...`);
@@ -114,7 +98,8 @@ export class ScraperService {
 
       // 5. Extract Results
       try {
-        await page.waitForSelector('#consulta, #div_warning, #div_error', { timeout: 5000, visible: true });
+        // We wait for either a span (new structure) or the error/warning divs
+        await page.waitForSelector('span, #div_warning, #div_error', { timeout: 5000, visible: true });
       } catch (e) {
         console.log(`[${Date.now() - startTime}ms] Timeout waiting for results, checking page content...`);
       }
@@ -122,26 +107,47 @@ export class ScraperService {
       console.log(`[${Date.now() - startTime}ms] Processing page results...`);
 
       const result = await page.evaluate((cedula) => {
-        // 1. Check for success table FIRST
-        const tableEl = document.querySelector('#consulta');
+        // Helper to find value by label text in the new flex structure
+        const getVal = (label: string) => {
+          // New flex structure (Label span followed by Value span)
+          const spans = Array.from(document.querySelectorAll('span'));
+          const labelSpan = spans.find(s => s.innerText.trim().toUpperCase() === label.toUpperCase());
+          if (labelSpan && labelSpan.parentElement) {
+            // Find all spans in the same container
+            const containerSpans = Array.from(labelSpan.parentElement.querySelectorAll('span'));
+            const labelIndex = containerSpans.indexOf(labelSpan);
+            // The value is usually the next span
+            if (labelIndex !== -1 && containerSpans[labelIndex + 1]) {
+              return containerSpans[labelIndex + 1].innerText.trim();
+            }
+          }
+          return 'Unknown';
+        };
 
-        if (tableEl) {
-          const getVal = (key: string) => {
-            const el = tableEl.querySelector(`td[data-th="${key}"]`) as HTMLElement;
-            return el ? el.innerText.trim() : 'Unknown';
-          };
+        // Evidence of success: Puesto and Mesa are present
+        const pollingStation = getVal('PUESTO');
+        const mesa = getVal('MESA');
 
+        if (pollingStation !== 'Unknown' || mesa !== 'Unknown') {
           const extractedCedula = getVal('NUIP');
-          const pollingStation = getVal('PUESTO');
-          const table = getVal('MESA');
           const department = getVal('DEPARTAMENTO');
           const municipality = getVal('MUNICIPIO');
           const address = getVal('DIRECCIÓN');
-          // Note: console.log inside evaluate goes to browser console, not node console
-          return { success: true, data: { cedula: extractedCedula, pollingStation, table, department, municipality, address } };
+
+          return {
+            success: true,
+            data: {
+              cedula: extractedCedula === 'Unknown' ? cedula : extractedCedula,
+              pollingStation,
+              table: mesa,
+              department,
+              municipality,
+              address
+            }
+          };
         }
 
-        // 2. If no table, it MUST be an error/warning
+        // 2. If no success evidence, it MUST be an error/warning
         const warningDiv = document.getElementById('div_warning');
         const errorDiv = document.getElementById('div_error');
         const bodyText = document.body.innerText;
