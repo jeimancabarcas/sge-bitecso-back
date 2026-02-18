@@ -91,20 +91,26 @@ export class ScraperService {
       console.log(`[${Date.now() - startTime}ms] Captcha injected`);
 
       // 4. Submit Form
-      const submitButtonSelector = 'button.bg-general-button';
+      const buttonText = 'Consultar';
       try {
-        await page.waitForFunction((selector) => {
-          const btn = document.querySelector(selector) as HTMLButtonElement;
+        await page.waitForFunction((text) => {
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const btn = buttons.find(b => b.innerText.trim().toUpperCase() === text.toUpperCase());
           return btn && !btn.disabled;
-        }, { timeout: 10000 }, submitButtonSelector);
+        }, { timeout: 10000 }, buttonText);
 
-        await page.click(submitButtonSelector);
-      } catch (e) {
-        console.log(`[${Date.now() - startTime}ms] Warning: Submit button not enabled or found, attempting emergency click...`);
-        await page.evaluate((selector) => {
-          const btn = document.querySelector(selector) as HTMLButtonElement;
+        await page.evaluate((text) => {
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const btn = buttons.find(b => b.innerText.trim().toUpperCase() === text.toUpperCase());
           if (btn) btn.click();
-        }, submitButtonSelector);
+        }, buttonText);
+      } catch (e) {
+        console.log(`[${Date.now() - startTime}ms] Warning: Button with text "${buttonText}" not enabled or found, attempting emergency click...`);
+        // Emergency fallback with selector if text fails
+        await page.evaluate(() => {
+          const btn = document.querySelector('button.bg-general-button') as HTMLButtonElement;
+          if (btn) btn.click();
+        });
       }
       console.log(`[${Date.now() - startTime}ms] Form submitted`);
 
