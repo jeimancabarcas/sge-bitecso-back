@@ -40,6 +40,12 @@ export class VotersController {
         return this.votersService.generateReport(res);
     }
 
+    @Get('report-by-leader')
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    async downloadReportByLeader(@Res() res: Response, @Query('leaderId') leaderId?: string) {
+        return this.votersService.generateReportByLeader(res, leaderId);
+    }
+
     @Get('dashboard-stats')
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
     getDashboardStats() {

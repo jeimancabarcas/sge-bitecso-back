@@ -369,4 +369,89 @@ export class VotersService {
         await workbook.xlsx.write(res);
         res.end();
     }
+
+    async generateReportByLeader(res: Response, leaderId?: string) {
+        const where: any = { verification_status: 'SUCCESS' };
+        if (leaderId) {
+            where.leader_id = leaderId;
+        }
+
+        const voters = await this.voterRepository.find({
+            where,
+            relations: ['detail', 'leader'],
+            order: {
+                leader: { nombre: 'ASC' },
+                nombre: 'ASC'
+            }
+        });
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Votantes por Líder');
+
+        // Agrupar por líder
+        const groupedByLeader: { [key: string]: { leader: any, voters: any[] } } = {};
+        voters.forEach(voter => {
+            const leaderId = voter.leader?.id || 'no-leader';
+            if (!groupedByLeader[leaderId]) {
+                groupedByLeader[leaderId] = {
+                    leader: voter.leader || { nombre: 'SIN LÍDER ASIGNADO', cedula: 'N/A', telefono: 'N/A' },
+                    voters: []
+                };
+            }
+            groupedByLeader[leaderId].voters.push(voter);
+        });
+
+        let currentRow = 1;
+
+        Object.values(groupedByLeader).forEach(group => {
+            // 1. Dos primeras filas combinadas con info del líder
+            const leaderCellRange = `A${currentRow}:F${currentRow + 1}`;
+            worksheet.mergeCells(leaderCellRange);
+            const leaderRow = worksheet.getRow(currentRow);
+            leaderRow.height = 30;
+            const mergedCell = worksheet.getCell(`A${currentRow}`);
+            mergedCell.value = `LÍDER: ${group.leader.nombre} - CÉDULA: ${group.leader.cedula} - TELÉFONO: ${group.leader.telefono}`;
+            mergedCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            mergedCell.font = { bold: true, size: 12 };
+            mergedCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE0E0E0' }
+            };
+
+            currentRow += 2;
+
+            // 2. Encabezados del votante
+            const headerRow = worksheet.getRow(currentRow);
+            headerRow.values = ['Cédula', 'Nombre', 'Celular', 'Municipio', 'Puesto de votación', 'Mesa'];
+            headerRow.font = { bold: true };
+            worksheet.columns.forEach((col, i) => {
+                if (i < 6) worksheet.getColumn(i + 1).width = 25;
+            });
+            currentRow++;
+
+            // 3. Votantes
+            group.voters.forEach(voter => {
+                worksheet.addRow([
+                    voter.cedula,
+                    voter.nombre,
+                    voter.telefono,
+                    voter.detail?.municipality || '',
+                    voter.detail?.polling_station || '',
+                    voter.detail?.table || ''
+                ]);
+                currentRow++;
+            });
+
+            // Espacio entre líderes
+            currentRow++;
+            worksheet.addRow([]);
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=reporte_validado_por_lider.xlsx');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    }
 }
