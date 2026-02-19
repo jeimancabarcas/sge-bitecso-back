@@ -34,9 +34,17 @@ export class ScraperService {
     const httpsAgent = new HttpsProxyAgent(this.PROXY_URL);
 
     try {
+      // Opcional: Loguear la IP del proxy para depuración
+      try {
+        const currentIp = await this.getProxyIp();
+        console.log(`[${Date.now() - startTime}ms] IP de salida via Proxy: ${currentIp}`);
+      } catch (ipError) {
+        console.warn(`[${Date.now() - startTime}ms] No se pudo determinar la IP del proxy: ${ipError.message}`);
+      }
+
       // 1. Resolver el captcha (PASANDO EL PROXY PARA EVITAR EL 403)
-      console.log(`[${Date.now() - startTime}ms] Solicitando token a 2Captcha (vía Proxy)...`);
-      const token = await this.solveCaptcha();
+      console.log(`[${Date.now() - startTime}ms] Solicitando token a CapSolver (vía Proxy)...`);
+      const token = await this.solveWithCapSolver();
 
       // 2. Petición POST final con el Agente del Proxy
       console.log(`[${Date.now() - startTime}ms] Enviando consulta a la API con Proxy...`);
@@ -106,6 +114,70 @@ export class ScraperService {
         status === 403 ? 'Bloqueo de Akamai vía Proxy.' : 'Error en la consulta.',
         status || HttpStatus.INTERNAL_SERVER_ERROR
       );
+    }
+  }
+
+  async solveWithCapSolver(): Promise<string> {
+    const CAPSOLVER_API_KEY = this.configService.get<string>('CAPSOLVER_API_KEY');
+    if (!CAPSOLVER_API_KEY) throw new Error('CAPSOLVER_API_KEY no configurada');
+
+    try {
+      console.log(`[CapSolver] Solicitando resolución de ReCaptchaV2...`);
+
+      // 1. Crear la tarea
+      const createTaskResponse = await axios.post('https://api.capsolver.com/createTask', {
+        clientKey: CAPSOLVER_API_KEY,
+        task: {
+          type: 'ReCaptchaV2TaskProxyLess',
+          websiteURL: this.TARGET_URL,
+          websiteKey: this.SITE_KEY,
+          proxy: this.PROXY_URL,
+        }
+      });
+
+      if (createTaskResponse.data.errorId > 0) {
+        throw new Error(`CapSolver Error: ${createTaskResponse.data.errorCode}`);
+      }
+
+      const taskId = createTaskResponse.data.taskId;
+
+      // 2. Poll para obtener el resultado
+      let status = 'processing';
+      let token = '';
+
+      while (status === 'processing') {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const getTaskResponse = await axios.post('https://api.capsolver.com/getTaskResult', {
+          clientKey: CAPSOLVER_API_KEY,
+          taskId: taskId
+        });
+
+        status = getTaskResponse.data.status;
+        if (status === 'ready') {
+          token = getTaskResponse.data.solution.gRecaptchaResponse;
+        } else if (getTaskResponse.data.errorId > 0) {
+          throw new Error(`CapSolver Error durante polling: ${getTaskResponse.data.errorCode}`);
+        }
+      }
+
+      console.log(`[CapSolver] Token obtenido con éxito.`);
+      return token;
+    } catch (error) {
+      throw new Error(`Error en CapSolver: ${error.message}`);
+    }
+  }
+
+  async getProxyIp(): Promise<string> {
+    const httpsAgent = new HttpsProxyAgent(this.PROXY_URL);
+    try {
+      const response = await axios.get('https://api.ipify.org?format=json', {
+        httpsAgent,
+        proxy: false,
+        timeout: 10000
+      });
+      return response.data.ip;
+    } catch (error) {
+      throw new Error(`No se pudo obtener la IP del proxy: ${error.message}`);
     }
   }
 
