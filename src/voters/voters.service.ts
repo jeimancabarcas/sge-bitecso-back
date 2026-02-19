@@ -325,13 +325,25 @@ export class VotersService {
 
     async generateReport(res: Response) {
         const voters = await this.voterRepository.find({
-            where: { verification_status: 'SUCCESS' },
-            relations: ['detail', 'leader', 'created_by'],
-            order: { created_at: 'DESC' }
+            where: [
+                { verification_status: 'SUCCESS' },
+                { verification_status: 'FAILED' }
+            ],
+            relations: ['detail', 'leader', 'created_by', 'verification_logs'],
+            order: {
+                created_at: 'DESC'
+            }
         });
 
+        this.logger.debug(`Generando reporte. Total votantes encontrados: ${voters.length}`);
+        const statusCounts = voters.reduce((acc, v) => {
+            acc[v.verification_status] = (acc[v.verification_status] || 0) + 1;
+            return acc;
+        }, {});
+        this.logger.debug(`Breakdown de estados: ${JSON.stringify(statusCounts)}`);
+
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Reporte Votantes exitosos');
+        const worksheet = workbook.addWorksheet('Reporte de Votantes');
 
         worksheet.columns = [
             { header: 'Cédula', key: 'cedula', width: 15 },
@@ -345,10 +357,11 @@ export class VotersService {
             { header: 'Líder', key: 'leader', width: 30 },
             { header: 'Digitador', key: 'digitador', width: 20 },
             { header: 'Fecha Registro', key: 'created_at', width: 20 },
+            { header: 'Observación', key: 'observation', width: 40 },
         ];
 
         voters.forEach(voter => {
-            worksheet.addRow({
+            const row = worksheet.addRow({
                 cedula: voter.cedula,
                 nombre: voter.nombre,
                 telefono: voter.telefono,
@@ -360,7 +373,27 @@ export class VotersService {
                 leader: voter.leader?.nombre || 'Sin Asignar',
                 digitador: voter.created_by?.username || 'Desconocido',
                 created_at: voter.created_at.toLocaleString(),
+                observation: (() => {
+                    if (!voter.verification_logs || voter.verification_logs.length === 0) {
+                        return voter.verification_status === 'SUCCESS' ? 'Verificado' : '';
+                    }
+                    // Sort in memory to be sure it's the latest
+                    const sortedLogs = [...voter.verification_logs].sort((a, b) =>
+                        new Date(b.attempted_at).getTime() - new Date(a.attempted_at).getTime()
+                    );
+                    return sortedLogs[0].message;
+                })()
             });
+
+            if (voter.verification_status === 'FAILED') {
+                row.eachCell((cell) => {
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FFFFE0E0' } // Light red
+                    };
+                });
+            }
         });
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -371,19 +404,27 @@ export class VotersService {
     }
 
     async generateReportByLeader(res: Response, leaderId?: string) {
-        const where: any = { verification_status: 'SUCCESS' };
-        if (leaderId) {
-            where.leader_id = leaderId;
-        }
-
-        const voters = await this.voterRepository.find({
-            where,
-            relations: ['detail', 'leader'],
+        const queryOptions: any = {
+            relations: ['detail', 'leader', 'verification_logs'],
             order: {
                 leader: { nombre: 'ASC' },
                 nombre: 'ASC'
             }
-        });
+        };
+
+        if (leaderId) {
+            queryOptions.where = [
+                { leader_id: leaderId, verification_status: 'SUCCESS' },
+                { leader_id: leaderId, verification_status: 'FAILED' }
+            ];
+        } else {
+            queryOptions.where = [
+                { verification_status: 'SUCCESS' },
+                { verification_status: 'FAILED' }
+            ];
+        }
+
+        const voters = await this.voterRepository.find(queryOptions);
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Votantes por Líder');
@@ -404,8 +445,8 @@ export class VotersService {
         let currentRow = 1;
 
         Object.values(groupedByLeader).forEach(group => {
-            // 1. Dos primeras filas combinadas con info del líder
-            const leaderCellRange = `A${currentRow}:F${currentRow + 1}`;
+            // 1. Dos primeras filas combinadas con info del líder (A hasta G - 7 columnas)
+            const leaderCellRange = `A${currentRow}:G${currentRow + 1}`;
             worksheet.mergeCells(leaderCellRange);
             const leaderRow = worksheet.getRow(currentRow);
             leaderRow.height = 30;
@@ -423,23 +464,40 @@ export class VotersService {
 
             // 2. Encabezados del votante
             const headerRow = worksheet.getRow(currentRow);
-            headerRow.values = ['Cédula', 'Nombre', 'Celular', 'Municipio', 'Puesto de votación', 'Mesa'];
+            headerRow.values = ['Cédula', 'Nombre', 'Celular', 'Municipio', 'Puesto de votación', 'Mesa', 'Observación'];
             headerRow.font = { bold: true };
             worksheet.columns.forEach((col, i) => {
-                if (i < 6) worksheet.getColumn(i + 1).width = 25;
+                if (i < 7) worksheet.getColumn(i + 1).width = 25;
             });
             currentRow++;
 
             // 3. Votantes
             group.voters.forEach(voter => {
-                worksheet.addRow([
+                const row = worksheet.addRow([
                     voter.cedula,
                     voter.nombre,
                     voter.telefono,
                     voter.detail?.municipality || '',
                     voter.detail?.polling_station || '',
-                    voter.detail?.table || ''
+                    voter.detail?.table || '',
+                    (() => {
+                        if (!voter.verification_logs || voter.verification_logs.length === 0) return '';
+                        const sortedLogs = [...voter.verification_logs].sort((a, b) =>
+                            new Date(b.attempted_at).getTime() - new Date(a.attempted_at).getTime()
+                        );
+                        return sortedLogs[0].message;
+                    })()
                 ]);
+
+                if (voter.verification_status === 'FAILED') {
+                    row.eachCell((cell) => {
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: 'FFFFE0E0' } // Light red
+                        };
+                    });
+                }
                 currentRow++;
             });
 

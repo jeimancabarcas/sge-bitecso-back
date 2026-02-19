@@ -85,8 +85,17 @@ export class ScraperService {
 
     } catch (error) {
       const status = error.response?.status;
-      const errorDetail = error.response?.data || error.message;
+      const errorData = error.response?.data;
+      const errorDetail = errorData || error.message;
       console.error(`[Error ${status}]`, errorDetail);
+
+      // CASO ESPECIAL: 404 con status_code: 13 (Votante no existe o similar en la API)
+      if (status === 404 && errorData?.status_code === 13) {
+        return {
+          success: false,
+          error: errorData.message || 'Cédula no encontrada en el sistema oficial (Código 13).'
+        };
+      }
 
       // Si el proxy falla o Akamai bloquea el túnel
       if (error.message.includes('tunneling socket could not be established')) {
