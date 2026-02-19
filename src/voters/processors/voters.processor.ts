@@ -5,7 +5,7 @@ import { Job } from 'bullmq';
 import { VotersService } from '../voters.service';
 
 @Processor('voter-verification', {
-    concurrency: 1, // Process one by one
+    concurrency: 5, // Process one by one
 })
 export class VotersProcessor extends WorkerHost {
     private readonly logger = new Logger(VotersProcessor.name);

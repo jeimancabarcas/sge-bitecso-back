@@ -34,14 +34,14 @@ export class ScraperService {
     const httpsAgent = new HttpsProxyAgent(this.PROXY_URL);
 
     try {
-      // Opcional: Loguear la IP del proxy para depuración
+      /*// Opcional: Loguear la IP del proxy para depuración
       try {
         const currentIp = await this.getProxyIp();
         console.log(`[${Date.now() - startTime}ms] IP de salida via Proxy: ${currentIp}`);
       } catch (ipError) {
         console.warn(`[${Date.now() - startTime}ms] No se pudo determinar la IP del proxy: ${ipError.message}`);
       }
-
+*/
       // 1. Resolver el captcha (PASANDO EL PROXY PARA EVITAR EL 403)
       console.log(`[${Date.now() - startTime}ms] Solicitando token a CapSolver (vía Proxy)...`);
       const token = await this.solveWithCapSolver();
