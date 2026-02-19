@@ -25,13 +25,13 @@ export class VotersController {
 
     @Post('process-pending')
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
-    processPending() {
-        return this.votersService.triggerManualVerification();
+    processPending(@Query('limit') limit?: string) {
+        return this.votersService.triggerManualVerification(limit ? +limit : undefined);
     }
 
     @Post(':id/verify')
     verify(@Param('id') id: string) {
-        return this.votersService.verifyVoter(id);
+        return this.votersService.queueVerification(id);
     }
 
     @Get('report')

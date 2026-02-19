@@ -1,7 +1,7 @@
 
 import { Injectable, Logger, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateVoterDto } from './dto/create-voter.dto';
 import { UpdateVoterDto } from './dto/update-voter.dto';
 import { Voter } from './entities/voter.entity';
@@ -13,6 +13,8 @@ import { LeadersService } from '../leaders/leaders.service';
 import * as ExcelJS from 'exceljs';
 import type { Response } from 'express';
 import { Cron } from '@nestjs/schedule';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class VotersService {
@@ -22,47 +24,58 @@ export class VotersService {
         return this.triggerManualVerification();
     }
 
-    async triggerManualVerification() {
-        this.logger.debug('Iniciando procesamiento de votantes pendientes/error...');
+    async triggerManualVerification(limit?: number) {
+        this.logger.debug(limit ? `Encolando procesamiento de hasta ${limit} votantes...` : 'Encolando TODOS los votantes pendientes/error...');
 
-        // Primero buscamos los PENDING
-        let voter = await this.voterRepository.findOne({
+        // Buscamos candidatos: primero PENDING, luego ERROR (Orden descendente para los "últimos")
+        const findOptions: any = {
             where: { verification_status: 'PENDING' },
-            order: { created_at: 'ASC' },
-        });
+            order: { created_at: 'DESC' },
+        };
+        if (limit) findOptions.take = limit;
 
-        // Si no hay PENDING, buscamos en estado ERROR para reintentar
-        if (!voter) {
-            this.logger.debug('No hay votantes pendientes. Buscando votantes en ERROR para reintentar...');
-            voter = await this.voterRepository.findOne({
+        const pendingVoters = await this.voterRepository.find(findOptions);
+
+        let candidates = [...pendingVoters];
+
+        if (!limit || candidates.length < (limit || 0)) {
+            const errorFindOptions: any = {
                 where: { verification_status: 'ERROR' },
-                order: { created_at: 'ASC' },
-            });
+                order: { created_at: 'DESC' },
+            };
+            if (limit) errorFindOptions.take = (limit || 0) - candidates.length;
+
+            const errorVoters = await this.voterRepository.find(errorFindOptions);
+            candidates = [...candidates, ...errorVoters];
         }
 
-        if (voter) {
-            const statusLabel = voter.verification_status === 'PENDING' ? 'pendiente' : 'en error (reintento)';
-            this.logger.log(`Iniciando verificación manual/cron para votante ${voter.cedula} (${statusLabel}).`);
-            try {
-                const result = await this.verifyVoter(voter.id);
-                return {
-                    message: `Procesamiento completado para cédula ${voter.cedula}`,
-                    voter: voter.cedula,
-                    status: 'SUCCESS',
-                    data: result
-                };
-            } catch (error) {
-                this.logger.error(`Falló la verificación para ${voter.cedula}`, error.stack);
-                return {
-                    message: `Error al procesar cédula ${voter.cedula}: ${error.message}`,
-                    voter: voter.cedula,
-                    status: 'FAILED'
-                };
-            }
-        } else {
-            this.logger.debug('No hay votantes para procesar.');
-            return { message: 'No hay votantes pendientes o en error para procesar' };
+        if (candidates.length === 0) {
+            return { message: 'No hay votantes para encolar.' };
         }
+
+        const jobs = await Promise.all(
+            candidates.map(voter =>
+                this.voterQueue.add('verify', { voterId: voter.id }, {
+                    jobId: voter.id, // Evita duplicados si ya está en cola
+                    attempts: 3,
+                    backoff: { type: 'exponential', delay: 5000 }
+                })
+            )
+        );
+
+        return {
+            message: `Se han encolado ${jobs.length} tareas de verificación.`,
+            jobIds: jobs.map(j => j.id)
+        };
+    }
+
+    async queueVerification(id: string) {
+        const job = await this.voterQueue.add('verify', { voterId: id }, {
+            jobId: id, // Evita duplicados
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 }
+        });
+        return { message: 'Verificación encolada', jobId: job.id };
     }
 
     constructor(
@@ -73,6 +86,7 @@ export class VotersService {
         private readonly scraperService: ScraperService,
         private readonly usersService: UsersService,
         private readonly leadersService: LeadersService,
+        @InjectQueue('voter-verification') private readonly voterQueue: Queue,
     ) { }
 
     async create(createVoterDto: CreateVoterDto, user: User) {
@@ -103,8 +117,17 @@ export class VotersService {
     }
 
     async verifyVoter(id: string) {
-        const voter = await this.voterRepository.findOneBy({ id });
+        const voter = await this.voterRepository.findOne({
+            where: { id },
+            relations: ['detail']
+        });
         if (!voter) throw new Error('Votante no encontrado');
+
+        // Si ya fue procesado con éxito o fallo definitivo, saltar
+        if (voter.verification_status === 'SUCCESS' || voter.verification_status === 'FAILED') {
+            this.logger.log(`Votante ${voter.cedula} ya está en estado ${voter.verification_status}. Saltando verificación.`);
+            return voter.detail;
+        }
 
         this.logger.log(`Verifying voter ${voter.cedula}...`);
 
