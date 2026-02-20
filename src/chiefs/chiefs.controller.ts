@@ -23,13 +23,13 @@ export class ChiefsController {
     }
 
     @Get()
-    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
     findAll() {
         return this.chiefsService.findAll();
     }
 
     @Get('stats')
-    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
     getStats() {
         return this.chiefsService.getChiefsStats();
     }

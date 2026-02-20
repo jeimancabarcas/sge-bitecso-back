@@ -17,7 +17,7 @@ export class CreateVoterDto {
     @ApiPropertyOptional({ description: 'Phone number of the voter' })
     @IsOptional()
     @IsString()
-    @Matches(/^[0-9]{10}$/, { message: 'El teléfono debe tener exactamente 10 números' })
+    @Matches(/^[0-9]*$/, { message: 'El teléfono debe contener solo números' })
     telefono?: string;
 
     @ApiPropertyOptional({ description: 'ID of the leader in charge (UUID)' })

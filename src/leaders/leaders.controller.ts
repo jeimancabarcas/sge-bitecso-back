@@ -14,7 +14,7 @@ import { UseGuards } from '@nestjs/common';
 @ApiBearerAuth()
 @Controller('leaders')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+@Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
 export class LeadersController {
     constructor(private readonly leadersService: LeadersService) { }
 

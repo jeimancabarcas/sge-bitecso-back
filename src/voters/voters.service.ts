@@ -352,7 +352,7 @@ export class VotersService {
                 { verification_status: 'SUCCESS' },
                 { verification_status: 'FAILED' }
             ],
-            relations: ['detail', 'leader', 'created_by', 'verification_logs'],
+            relations: ['detail', 'leader', 'leader.chief', 'created_by', 'verification_logs'],
             order: {
                 created_at: 'DESC'
             }
@@ -378,6 +378,7 @@ export class VotersService {
             { header: 'Mesa', key: 'table', width: 10 },
             { header: 'Dirección', key: 'address', width: 30 },
             { header: 'Líder', key: 'leader', width: 30 },
+            { header: 'Jefe', key: 'jefe', width: 30 },
             { header: 'Digitador', key: 'digitador', width: 20 },
             { header: 'Fecha Registro', key: 'created_at', width: 20 },
             { header: 'Observación', key: 'observation', width: 40 },
@@ -394,6 +395,7 @@ export class VotersService {
                 table: voter.detail?.table || '',
                 address: voter.detail?.address || '',
                 leader: voter.leader?.nombre || 'Sin Asignar',
+                jefe: voter.leader?.chief?.nombre || 'Sin Asignar',
                 digitador: voter.created_by?.username || 'Desconocido',
                 created_at: voter.created_at.toLocaleString(),
                 observation: (() => {
@@ -428,7 +430,7 @@ export class VotersService {
 
     async generateReportByLeader(res: Response, leaderId?: string) {
         const queryOptions: any = {
-            relations: ['detail', 'leader', 'verification_logs'],
+            relations: ['detail', 'leader', 'leader.chief', 'verification_logs'],
             order: {
                 leader: { nombre: 'ASC' },
                 nombre: 'ASC'
@@ -458,7 +460,7 @@ export class VotersService {
             const leaderId = voter.leader?.id || 'no-leader';
             if (!groupedByLeader[leaderId]) {
                 groupedByLeader[leaderId] = {
-                    leader: voter.leader || { nombre: 'SIN LÍDER ASIGNADO', cedula: 'N/A', telefono: 'N/A' },
+                    leader: voter.leader || { nombre: 'SIN LÍDER ASIGNADO', cedula: 'N/A', telefono: 'N/A', chief: null },
                     voters: []
                 };
             }
@@ -474,7 +476,8 @@ export class VotersService {
             const leaderRow = worksheet.getRow(currentRow);
             leaderRow.height = 30;
             const mergedCell = worksheet.getCell(`A${currentRow}`);
-            mergedCell.value = `LÍDER: ${group.leader.nombre} - CÉDULA: ${group.leader.cedula} - TELÉFONO: ${group.leader.telefono}`;
+            const jefeNombre = group.leader.chief?.nombre || 'N/A';
+            mergedCell.value = `LÍDER: ${group.leader.nombre} - JEFE: ${jefeNombre} - CÉDULA: ${group.leader.cedula} - TELÉFONO: ${group.leader.telefono}`;
             mergedCell.alignment = { vertical: 'middle', horizontal: 'center' };
             mergedCell.font = { bold: true, size: 12 };
             mergedCell.fill = {
@@ -531,6 +534,119 @@ export class VotersService {
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename=reporte_validado_por_lider.xlsx');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    }
+
+    async generateReportByChief(res: Response, chiefId?: string) {
+        const queryOptions: any = {
+            relations: ['detail', 'leader', 'leader.chief', 'verification_logs'],
+            order: {
+                leader: {
+                    chief: { nombre: 'ASC' },
+                    nombre: 'ASC'
+                },
+                nombre: 'ASC'
+            }
+        };
+
+        if (chiefId) {
+            queryOptions.where = [
+                { leader: { chief_id: chiefId }, verification_status: 'SUCCESS' },
+                { leader: { chief_id: chiefId }, verification_status: 'FAILED' }
+            ];
+        } else {
+            queryOptions.where = [
+                { verification_status: 'SUCCESS' },
+                { verification_status: 'FAILED' }
+            ];
+        }
+
+        const voters = await this.voterRepository.find(queryOptions);
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Votantes por Jefe');
+
+        // Agrupar por jefe
+        const groupedByChief: { [key: string]: { chief: any, voters: any[] } } = {};
+        voters.forEach(voter => {
+            const chiefId = voter.leader?.chief?.id || 'no-chief';
+            if (!groupedByChief[chiefId]) {
+                groupedByChief[chiefId] = {
+                    chief: voter.leader?.chief || { nombre: 'SIN JEFE ASIGNADO', cedula: 'N/A', telefono: 'N/A' },
+                    voters: []
+                };
+            }
+            groupedByChief[chiefId].voters.push(voter);
+        });
+
+        let currentRow = 1;
+
+        Object.values(groupedByChief).forEach(group => {
+            // 1. Header del Jefe (8 columnas: A hasta H)
+            const chiefCellRange = `A${currentRow}:H${currentRow + 1}`;
+            worksheet.mergeCells(chiefCellRange);
+            const chiefRow = worksheet.getRow(currentRow);
+            chiefRow.height = 30;
+            const mergedCell = worksheet.getCell(`A${currentRow}`);
+            mergedCell.value = `JEFE: ${group.chief.nombre} - CÉDULA: ${group.chief.cedula} - TELÉFONO: ${group.chief.telefono}`;
+            mergedCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            mergedCell.font = { bold: true, size: 12 };
+            mergedCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE0E0F0' } // Light blue/purple for Chief
+            };
+
+            currentRow += 2;
+
+            // 2. Encabezados
+            const headerRow = worksheet.getRow(currentRow);
+            headerRow.values = ['Cédula', 'Nombre', 'Líder', 'Celular', 'Municipio', 'Puesto de votación', 'Mesa', 'Observación'];
+            headerRow.font = { bold: true };
+            worksheet.columns.forEach((col, i) => {
+                if (i < 8) worksheet.getColumn(i + 1).width = 25;
+            });
+            currentRow++;
+
+            // 3. Votantes
+            group.voters.forEach(voter => {
+                const row = worksheet.addRow([
+                    voter.cedula,
+                    voter.nombre,
+                    voter.leader?.nombre || 'N/A',
+                    voter.telefono,
+                    voter.detail?.municipality || '',
+                    voter.detail?.polling_station || '',
+                    voter.detail?.table || '',
+                    (() => {
+                        if (!voter.verification_logs || voter.verification_logs.length === 0) return '';
+                        const sortedLogs = [...voter.verification_logs].sort((a, b) =>
+                            new Date(b.attempted_at).getTime() - new Date(a.attempted_at).getTime()
+                        );
+                        return sortedLogs[0].message;
+                    })()
+                ]);
+
+                if (voter.verification_status === 'FAILED') {
+                    row.eachCell((cell) => {
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: 'FFFFE0E0' }
+                        };
+                    });
+                }
+                currentRow++;
+            });
+
+            currentRow++;
+            worksheet.addRow([]);
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=reporte_validado_por_jefe.xlsx');
 
         await workbook.xlsx.write(res);
         res.end();

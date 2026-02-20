@@ -4,6 +4,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 export enum UserRole {
     ADMIN = 'admin',
     DIGITADOR = 'digitador',
+    VIEWER = 'viewer',
 }
 
 @Entity()
