@@ -44,7 +44,7 @@ export class ScraperService {
 */
       // 1. Resolver el captcha (PASANDO EL PROXY PARA EVITAR EL 403)
       console.log(`[${Date.now() - startTime}ms] Solicitando token a CapSolver (vía Proxy)...`);
-      const token = await this.solveWithCapSolver();
+      const token = await this.solveCaptcha();
 
       // 2. Petición POST final con el Agente del Proxy
       console.log(`[${Date.now() - startTime}ms] Enviando consulta a la API con Proxy...`);
@@ -72,7 +72,7 @@ export class ScraperService {
           timeout: 20000 // Aumentamos el tiempo porque los proxies pueden ser más lentos
         }
       );
-
+      console.log(response.headers.getUserAgent);
       const apiData = response.data.data;
 
       if (apiData.is_in_census === false) {
@@ -184,13 +184,7 @@ export class ScraperService {
   private async solveCaptcha(): Promise<string> {
     const solver = new Solver(this.TWOCAPTCHA_API_KEY);
     try {
-      // 2Captcha necesita que el proxy no lleve el protocolo 'http://' en su campo proxy
-      const proxyFor2Captcha = this.PROXY_URL.replace('http://', '');
-      console.log(proxyFor2Captcha);
-      const result = await solver.recaptcha(this.SITE_KEY, this.TARGET_URL, {
-        proxy: proxyFor2Captcha,
-        proxytype: 'http'
-      });
+      const result = await solver.recaptcha(this.SITE_KEY, this.TARGET_URL);
       return result.data;
     } catch (error) {
       throw new Error(`2Captcha Falló: ${error.message}`);
