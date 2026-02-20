@@ -46,20 +46,26 @@ export class VotersController {
         return this.votersService.generateReportByLeader(res, leaderId);
     }
 
-    @Get('dashboard-stats')
+    @Get('report-by-chief')
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    async downloadReportByChief(@Res() res: Response, @Query('chiefId') chiefId?: string) {
+        return this.votersService.generateReportByChief(res, chiefId);
+    }
+
+    @Get('dashboard-stats')
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
     getDashboardStats() {
         return this.votersService.getDashboardStats();
     }
 
     @Get('digitators-stats')
-    @Roles(UserRole.ADMIN)
+    @Roles(UserRole.ADMIN, UserRole.VIEWER)
     getDigitatorsStats() {
         return this.votersService.getDigitatorsStats();
     }
 
     @Get('leaders-stats')
-    @Roles(UserRole.ADMIN)
+    @Roles(UserRole.ADMIN, UserRole.VIEWER)
     getLeadersStats() {
         return this.votersService.getLeadersStats();
     }
@@ -71,6 +77,7 @@ export class VotersController {
     }
 
     @Get()
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
     findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
         return this.votersService.findAll(+page, +limit);
     }
