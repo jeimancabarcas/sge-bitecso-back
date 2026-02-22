@@ -44,7 +44,7 @@ export class ScraperService {
 */
       // 1. Resolver el captcha (PASANDO EL PROXY PARA EVITAR EL 403)
       console.log(`[${Date.now() - startTime}ms] Solicitando token a CapSolver (vía Proxy)...`);
-      const token = await this.solveCaptcha();
+      const token = await this.solveWithCapSolver();
 
       // 2. Petición POST final con el Agente del Proxy
       console.log(`[${Date.now() - startTime}ms] Enviando consulta a la API con Proxy...`);
