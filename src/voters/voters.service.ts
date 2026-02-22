@@ -168,7 +168,7 @@ export class VotersService {
         }
     }
 
-    async findAll(page: number = 1, limit: number = 10, search?: string) {
+    async findAll(page: number = 1, limit: number = 10, search?: string, status?: string) {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
             .leftJoinAndSelect('voter.detail', 'detail')
@@ -179,7 +179,11 @@ export class VotersService {
             .addOrderBy('logs.attempted_at', 'DESC');
 
         if (search) {
-            queryBuilder.where('voter.cedula LIKE :search OR voter.nombre ILIKE :search', { search: `%${search}%` });
+            queryBuilder.andWhere('(voter.cedula LIKE :search OR voter.nombre ILIKE :search)', { search: `%${search}%` });
+        }
+
+        if (status) {
+            queryBuilder.andWhere('voter.verification_status = :status', { status });
         }
 
         const [items, total] = await queryBuilder
@@ -196,7 +200,7 @@ export class VotersService {
         };
     }
 
-    async findAllByUser(userId: string, page: number = 1, limit: number = 10, search?: string) {
+    async findAllByUser(userId: string, page: number = 1, limit: number = 10, search?: string, status?: string) {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
             .leftJoinAndSelect('voter.detail', 'detail')
@@ -207,6 +211,10 @@ export class VotersService {
 
         if (search) {
             queryBuilder.andWhere('(voter.cedula LIKE :search OR voter.nombre ILIKE :search)', { search: `%${search}%` });
+        }
+
+        if (status) {
+            queryBuilder.andWhere('voter.verification_status = :status', { status });
         }
 
         const [items, total] = await queryBuilder

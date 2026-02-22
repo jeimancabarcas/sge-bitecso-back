@@ -72,14 +72,25 @@ export class VotersController {
 
     @Get('my-records')
     @Roles(UserRole.DIGITADOR, UserRole.ADMIN)
-    getMyRecords(@Request() req, @Query('page') page: number = 1, @Query('limit') limit: number = 10, @Query('search') search?: string) {
-        return this.votersService.findAllByUser(req.user.id, +page, +limit, search);
+    getMyRecords(
+        @Request() req,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
+        @Query('search') search?: string,
+        @Query('status') status?: string
+    ) {
+        return this.votersService.findAllByUser(req.user.id, +page, +limit, search, status);
     }
 
     @Get()
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
-    findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10, @Query('search') search?: string) {
-        return this.votersService.findAll(+page, +limit, search);
+    findAll(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
+        @Query('search') search?: string,
+        @Query('status') status?: string
+    ) {
+        return this.votersService.findAll(+page, +limit, search, status);
     }
 
     @Get(':id')
