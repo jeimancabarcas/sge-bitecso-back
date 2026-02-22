@@ -72,14 +72,14 @@ export class VotersController {
 
     @Get('my-records')
     @Roles(UserRole.DIGITADOR, UserRole.ADMIN)
-    getMyRecords(@Request() req, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
-        return this.votersService.findAllByUser(req.user.id, +page, +limit);
+    getMyRecords(@Request() req, @Query('page') page: number = 1, @Query('limit') limit: number = 10, @Query('search') search?: string) {
+        return this.votersService.findAllByUser(req.user.id, +page, +limit, search);
     }
 
     @Get()
     @Roles(UserRole.ADMIN, UserRole.DIGITADOR, UserRole.VIEWER)
-    findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
-        return this.votersService.findAll(+page, +limit);
+    findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10, @Query('search') search?: string) {
+        return this.votersService.findAll(+page, +limit, search);
     }
 
     @Get(':id')
@@ -88,8 +88,9 @@ export class VotersController {
     }
 
     @Patch(':id')
-    update(@Param('id') id: string, @Body() updateVoterDto: UpdateVoterDto) {
-        return this.votersService.update(+id, updateVoterDto);
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    update(@Param('id') id: string, @Body() updateVoterDto: UpdateVoterDto, @Request() req) {
+        return this.votersService.update(id, updateVoterDto, req.user);
     }
 
 }
