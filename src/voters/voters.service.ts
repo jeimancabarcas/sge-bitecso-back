@@ -245,20 +245,16 @@ export class VotersService {
             throw new ForbiddenException('No tienes permiso para editar este registro');
         }
 
-        // Check status (only PENDING or FAILED can be edited by anyone)
-        if (voter.verification_status !== 'PENDING' && voter.verification_status !== 'FAILED') {
-            throw new ForbiddenException('Solo se pueden editar registros en estado PENDING o FAILED');
-        }
-
         // If cedula is being updated, check if it already exists
         if (updateVoterDto.cedula && updateVoterDto.cedula !== voter.cedula) {
             const existing = await this.voterRepository.findOne({ where: { cedula: updateVoterDto.cedula } });
             if (existing) {
                 throw new ConflictException(`La cédula ${updateVoterDto.cedula} ya está registrada`);
             }
-            // Reset status to PENDING if cedula changes
-            voter.verification_status = 'PENDING';
         }
+
+        // Reset status to PENDING on every update as requested
+        voter.verification_status = 'PENDING';
 
         Object.assign(voter, updateVoterDto);
         return this.voterRepository.save(voter);
