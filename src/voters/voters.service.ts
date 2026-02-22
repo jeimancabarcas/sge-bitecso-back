@@ -1,5 +1,5 @@
 
-import { Injectable, Logger, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { CreateVoterDto } from './dto/create-voter.dto';
@@ -191,7 +191,7 @@ export class VotersService {
         }
     }
 
-    async findAll(page: number = 1, limit: number = 10) {
+    async findAll(page: number = 1, limit: number = 10, search?: string) {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
             .leftJoinAndSelect('voter.detail', 'detail')
@@ -199,11 +199,16 @@ export class VotersService {
             .leftJoin('voter.created_by', 'created_by')
             .addSelect(['created_by.id', 'created_by.username', 'created_by.role'])
             .orderBy('voter.created_at', 'DESC')
-            .addOrderBy('logs.attempted_at', 'DESC')
-            .take(limit)
-            .skip((page - 1) * limit);
+            .addOrderBy('logs.attempted_at', 'DESC');
 
-        const [items, total] = await queryBuilder.getManyAndCount();
+        if (search) {
+            queryBuilder.where('voter.cedula LIKE :search OR voter.nombre ILIKE :search', { search: `%${search}%` });
+        }
+
+        const [items, total] = await queryBuilder
+            .take(limit)
+            .skip((page - 1) * limit)
+            .getManyAndCount();
 
         return {
             items,
@@ -214,17 +219,23 @@ export class VotersService {
         };
     }
 
-    async findAllByUser(userId: string, page: number = 1, limit: number = 10) {
-        const [items, total] = await this.voterRepository.findAndCount({
-            where: { created_by: { id: userId } },
-            order: {
-                created_at: 'DESC',
-                verification_logs: { attempted_at: 'DESC' }
-            },
-            take: limit,
-            skip: (page - 1) * limit,
-            relations: ['leader', 'detail', 'verification_logs']
-        });
+    async findAllByUser(userId: string, page: number = 1, limit: number = 10, search?: string) {
+        const queryBuilder = this.voterRepository.createQueryBuilder('voter')
+            .leftJoinAndSelect('voter.leader', 'leader')
+            .leftJoinAndSelect('voter.detail', 'detail')
+            .leftJoinAndSelect('voter.verification_logs', 'logs')
+            .where('voter.created_by = :userId', { userId })
+            .orderBy('voter.created_at', 'DESC')
+            .addOrderBy('logs.attempted_at', 'DESC');
+
+        if (search) {
+            queryBuilder.andWhere('(voter.cedula LIKE :search OR voter.nombre ILIKE :search)', { search: `%${search}%` });
+        }
+
+        const [items, total] = await queryBuilder
+            .take(limit)
+            .skip((page - 1) * limit)
+            .getManyAndCount();
 
         return {
             items,
@@ -242,8 +253,38 @@ export class VotersService {
         });
     }
 
-    update(id: number, updateVoterDto: UpdateVoterDto) {
-        return `Esta acción actualiza al votante #${id}`;
+    async update(id: string, updateVoterDto: UpdateVoterDto, user: User) {
+        const voter = await this.voterRepository.findOne({
+            where: { id },
+            relations: ['created_by']
+        });
+
+        if (!voter) {
+            throw new NotFoundException('Votante no encontrado');
+        }
+
+        // Check ownership/permissions (Digitadores only their own)
+        if (user.role === UserRole.DIGITADOR && voter.created_by?.id !== user.id) {
+            throw new ForbiddenException('No tienes permiso para editar este registro');
+        }
+
+        // Check status (only PENDING or FAILED can be edited by anyone)
+        if (voter.verification_status !== 'PENDING' && voter.verification_status !== 'FAILED') {
+            throw new ForbiddenException('Solo se pueden editar registros en estado PENDING o FAILED');
+        }
+
+        // If cedula is being updated, check if it already exists
+        if (updateVoterDto.cedula && updateVoterDto.cedula !== voter.cedula) {
+            const existing = await this.voterRepository.findOne({ where: { cedula: updateVoterDto.cedula } });
+            if (existing) {
+                throw new ConflictException(`La cédula ${updateVoterDto.cedula} ya está registrada`);
+            }
+            // Reset status to PENDING if cedula changes
+            voter.verification_status = 'PENDING';
+        }
+
+        Object.assign(voter, updateVoterDto);
+        return this.voterRepository.save(voter);
     }
 
     async getDashboardStats() {
