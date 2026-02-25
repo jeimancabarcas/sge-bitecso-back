@@ -191,7 +191,7 @@ export class VotersService {
         }
     }
 
-    async findAll(page: number = 1, limit: number = 10, search?: string) {
+    async findAll(page: number = 1, limit: number = 10, search?: string, status?: string) {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
             .leftJoinAndSelect('voter.detail', 'detail')
@@ -202,7 +202,11 @@ export class VotersService {
             .addOrderBy('logs.attempted_at', 'DESC');
 
         if (search) {
-            queryBuilder.where('voter.cedula LIKE :search OR voter.nombre ILIKE :search', { search: `%${search}%` });
+            queryBuilder.andWhere('(voter.cedula LIKE :search OR voter.nombre ILIKE :search)', { search: `%${search}%` });
+        }
+
+        if (status) {
+            queryBuilder.andWhere('voter.verification_status = :status', { status });
         }
 
         const [items, total] = await queryBuilder
@@ -219,7 +223,7 @@ export class VotersService {
         };
     }
 
-    async findAllByUser(userId: string, page: number = 1, limit: number = 10, search?: string) {
+    async findAllByUser(userId: string, page: number = 1, limit: number = 10, search?: string, status?: string) {
         const queryBuilder = this.voterRepository.createQueryBuilder('voter')
             .leftJoinAndSelect('voter.leader', 'leader')
             .leftJoinAndSelect('voter.detail', 'detail')
@@ -230,6 +234,10 @@ export class VotersService {
 
         if (search) {
             queryBuilder.andWhere('(voter.cedula LIKE :search OR voter.nombre ILIKE :search)', { search: `%${search}%` });
+        }
+
+        if (status) {
+            queryBuilder.andWhere('voter.verification_status = :status', { status });
         }
 
         const [items, total] = await queryBuilder
@@ -268,23 +276,42 @@ export class VotersService {
             throw new ForbiddenException('No tienes permiso para editar este registro');
         }
 
-        // Check status (only PENDING or FAILED can be edited by anyone)
-        if (voter.verification_status !== 'PENDING' && voter.verification_status !== 'FAILED') {
-            throw new ForbiddenException('Solo se pueden editar registros en estado PENDING o FAILED');
-        }
-
         // If cedula is being updated, check if it already exists
         if (updateVoterDto.cedula && updateVoterDto.cedula !== voter.cedula) {
             const existing = await this.voterRepository.findOne({ where: { cedula: updateVoterDto.cedula } });
             if (existing) {
                 throw new ConflictException(`La cédula ${updateVoterDto.cedula} ya está registrada`);
             }
-            // Reset status to PENDING if cedula changes
-            voter.verification_status = 'PENDING';
         }
+
+        // Reset status to PENDING on every update as requested
+        voter.verification_status = 'PENDING';
 
         Object.assign(voter, updateVoterDto);
         return this.voterRepository.save(voter);
+    }
+
+    async remove(id: string, user: User) {
+        const voter = await this.voterRepository.findOne({
+            where: { id },
+            relations: ['created_by']
+        });
+
+        if (!voter) {
+            throw new NotFoundException('Votante no encontrado');
+        }
+
+        // Only ADMIN or the DIGITADOR who created it can delete
+        if (user.role === UserRole.DIGITADOR && voter.created_by?.id !== user.id) {
+            throw new ForbiddenException('No tienes permiso para eliminar este registro');
+        }
+
+        // We should also delete logs and detail (detail is cascade: true, but logs are not)
+        // Let's check the entity again. VerificationLog has ManyToOne to Voter.
+        // If we want to delete voter, we might need to delete logs first or have onDelete: CASCADE.
+
+        await this.voterRepository.remove(voter);
+        return { message: 'Votante eliminado con éxito' };
     }
 
     async getDashboardStats() {

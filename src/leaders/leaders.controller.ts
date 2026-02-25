@@ -39,7 +39,7 @@ export class LeadersController {
     }
 
     @Delete(':id')
-    @Roles(UserRole.ADMIN)
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
     remove(@Param('id') id: string) {
         return this.leadersService.remove(id);
     }

@@ -41,7 +41,6 @@ import { ExpressAdapter } from '@bull-board/express';
       schema: process.env.DATABASE_SCHEMA || 'public',
       ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
       autoLoadEntities: true,
-      synchronize: true, // DEV ONLY
     }),
     VotersModule,
     ScraperModule,

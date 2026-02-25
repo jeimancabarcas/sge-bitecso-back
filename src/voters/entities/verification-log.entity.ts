@@ -13,7 +13,7 @@ export class VerificationLog {
     @Column({ nullable: true })
     message: string;
 
-    @ManyToOne(() => Voter, (voter) => voter.verification_logs)
+    @ManyToOne(() => Voter, (voter) => voter.verification_logs, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'voter_id' })
     voter: Voter;
 
