@@ -104,4 +104,9 @@ export class VotersController {
         return this.votersService.update(id, updateVoterDto, req.user);
     }
 
+    @Delete(':id')
+    @Roles(UserRole.ADMIN, UserRole.DIGITADOR)
+    remove(@Param('id') id: string, @Request() req) {
+        return this.votersService.remove(id, req.user);
+    }
 }

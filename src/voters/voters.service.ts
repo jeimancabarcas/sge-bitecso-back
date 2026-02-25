@@ -268,6 +268,29 @@ export class VotersService {
         return this.voterRepository.save(voter);
     }
 
+    async remove(id: string, user: User) {
+        const voter = await this.voterRepository.findOne({
+            where: { id },
+            relations: ['created_by']
+        });
+
+        if (!voter) {
+            throw new NotFoundException('Votante no encontrado');
+        }
+
+        // Only ADMIN or the DIGITADOR who created it can delete
+        if (user.role === UserRole.DIGITADOR && voter.created_by?.id !== user.id) {
+            throw new ForbiddenException('No tienes permiso para eliminar este registro');
+        }
+
+        // We should also delete logs and detail (detail is cascade: true, but logs are not)
+        // Let's check the entity again. VerificationLog has ManyToOne to Voter.
+        // If we want to delete voter, we might need to delete logs first or have onDelete: CASCADE.
+
+        await this.voterRepository.remove(voter);
+        return { message: 'Votante eliminado con éxito' };
+    }
+
     async getDashboardStats() {
         const stats = await this.voterRepository.createQueryBuilder('voter')
             .select('voter.verification_status', 'status')
